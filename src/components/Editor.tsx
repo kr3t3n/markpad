@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { clsx } from 'clsx';
+import { Save, Plus } from 'lucide-react';
 import { parseMarkdown, shortcuts, transformText, TextTransform } from '../utils/markdown';
+import { toast } from 'sonner';
 import { FormatCard } from './FormatCard';
 import { Card } from './Card';
 import { CopyButton } from './CopyButton';
+import { useAuth } from '../hooks/useAuth';
+import { useDocuments } from '../hooks/useDocuments';
+import { getDocument } from '../lib/database';
 
 const STORAGE_KEY = 'markdown-content';
 const LAYOUT_KEY = 'markdown-layout';
@@ -14,7 +20,10 @@ const PREVIEW_EXPANDED_KEY = 'preview-expanded';
 
 export function Editor() {
   const [content, setContent] = useState('');
+  const [title, setTitle] = useState('');
   const [preview, setPreview] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isVertical, setIsVertical] = useState(() => {
     const saved = Cookies.get(LAYOUT_KEY);
     return saved === 'vertical';
@@ -33,17 +42,45 @@ export function Editor() {
   });
 
   const previewRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const { create, update } = useDocuments();
+  const navigate = useNavigate();
+  const { id } = useParams();
+  
+  const isNew = useMemo(() => !id, [id]);
 
   useEffect(() => {
-    const saved = Cookies.get(STORAGE_KEY);
-    if (saved) {
-      setContent(saved);
-      setPreview(parseMarkdown(saved));
+    if (id) {
+      loadDocument();
+    } else if (!isNew) {
+      const saved = Cookies.get(STORAGE_KEY);
+      if (saved) {
+        setContent(saved);
+        setPreview(parseMarkdown(saved));
+      }
     }
-  }, []);
+  }, [id, isNew]);
+
+  const loadDocument = async () => {
+    if (!id) return;
+    
+    const { data, error } = await getDocument(id);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    
+    if (data) {
+      setTitle(data.title);
+      setContent(data.content);
+      setPreview(parseMarkdown(data.content));
+    }
+  };
 
   useEffect(() => {
-    Cookies.set(STORAGE_KEY, content, { expires: 365 });
+    if (!id) {
+      Cookies.set(STORAGE_KEY, content, { expires: 365 });
+    }
     setPreview(parseMarkdown(content));
   }, [content]);
 
@@ -118,9 +155,84 @@ export function Editor() {
     return previewRef.current.innerText;
   };
 
+  const handleSave = async () => {
+    if (!user) return;
+    if (!title.trim()) {
+      setError('Please enter a title');
+      return;
+    }
+    
+    setSaving(true);
+    setError(null);
+    
+    try {
+      const toastId = toast.loading('Creating document...');
+      if (isNew) {
+        const doc = await create(title, content);
+        if (doc) {
+          toast.dismiss(toastId);
+          toast.success('Document created successfully');
+          navigate(`/edit/${doc.id}`);
+        }
+      } else if (id) {
+        const toastId = toast.loading('Saving changes...');
+        await update(id, title, content);
+        toast.dismiss(toastId);
+        toast.success('Changes saved successfully');
+      }
+    } catch (err) {
+      toast.error('Failed to save document');
+      setError('Failed to save document');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleNew = () => {
+    setContent('');
+    setTitle('');
+    setError(null);
+    navigate('/new');
+  };
+
   return (
     <div className="container mx-auto px-0 sm:px-4 flex-1 flex flex-col">
       <div className="bg-white dark:bg-gray-800 rounded-none sm:rounded-lg shadow-lg flex-1 flex flex-col overflow-hidden">
+        {user && (
+          <div className="flex items-center gap-4 p-4 border-b dark:border-gray-700">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Document title"
+              className="flex-1 px-3 py-1.5 rounded-lg border dark:border-gray-700 dark:bg-gray-900"
+            />
+            <button
+              onClick={handleNew}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Plus size={20} />
+              New
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={clsx(
+                "inline-flex items-center gap-2 px-4 py-2 rounded-lg",
+                "bg-blue-600 text-white hover:bg-blue-700 transition-colors",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
+            >
+              <Save size={20} />
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-4 text-red-500 text-sm">{error}</div>
+        )}
+        
         <FormatCard
           isExpanded={isFormatExpanded}
           onToggle={() => setIsFormatExpanded(!isFormatExpanded)}

@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import {
   Bold, Italic, Underline, Code, Link, Heading1, Heading2, Heading3,
   Strikethrough, List, ListOrdered, ArrowUpRight, ArrowDownRight,
-  Type, ChevronDown, ArrowUpWideNarrow, ArrowDownWideNarrow, CaseSensitive,
-  FileCode, FileText, FileType, File, LayoutPanelLeft, LayoutPanelTop,
-  Sun, Moon
+  Type, ChevronDown, ArrowUpWideNarrow, ArrowDownWideNarrow, CaseSensitive, 
+  FileCode, FileText, FileType, File, LayoutPanelLeft, LayoutPanelTop
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { TextTransform } from '../utils/markdown';
 import { exportToMarkdown, exportToPlainText, exportToDocx, exportToOdt } from '../utils/export';
-import { useTheme } from '../hooks/useTheme';
 
 interface ToolbarProps {
   onFormat: (before: string, after: string) => void;
@@ -30,7 +28,6 @@ export function Toolbar({
 }: ToolbarProps) {
   const [showCaseDropdown, setShowCaseDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const { isDark, toggleTheme } = useTheme();
   
   const toolbarGroupClass = "flex gap-2 items-center";
   const dividerClass = "hidden sm:block border-r h-6 mx-2 dark:border-gray-700";
@@ -273,14 +270,6 @@ export function Toolbar({
         title={isVertical ? "Switch to horizontal layout" : "Switch to vertical layout"}
       >
         {isVertical ? <LayoutPanelTop size={20} /> : <LayoutPanelLeft size={20} />}
-      </button>
-
-      <button
-        onClick={toggleTheme}
-        className={buttonStyles}
-        title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      >
-        {isDark ? <Sun size={20} /> : <Moon size={20} />}
       </button>
     </div>
   );
