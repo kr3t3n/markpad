@@ -1,3 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.logo-image {
+  filter: brightness(0);
+}
+
+.dark .logo-image {
+  filter: brightness(0) invert(1);
+}
