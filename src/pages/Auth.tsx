@@ -60,7 +60,12 @@ export function Auth() {
       if (signUpError) {
         setError(signUpError.message);
       } else if (!searchParams.get('purchased')) {
-        window.location.href = 'https://buy.stripe.com/fZedUTdzQ2jTc247ss';
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
+        } else {
+          setError('Failed to get user information');
+        }
       } else {
         toast.success('Please check your email to confirm your account');
         setIsSignUp(false);
