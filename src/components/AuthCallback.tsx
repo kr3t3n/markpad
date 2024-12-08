@@ -24,13 +24,7 @@ export function AuthCallback() {
         }
         
         toast.success('Successfully authenticated!');
-        // After email verification, redirect to payment
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
-        } else {
-          navigate('/auth');
-        }
+        navigate('/');
         return;
       }
       

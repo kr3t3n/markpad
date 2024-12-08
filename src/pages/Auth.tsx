@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { toast } from 'sonner';
-import { LogIn, UserPlus, Loader2, KeyRound, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner'; 
+import { LogIn, UserPlus, Loader2, KeyRound, CreditCard } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -14,6 +14,15 @@ export function Auth() {
   const { signIn, signUp, resetPassword, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Pre-fill email from Stripe success redirect
+  useEffect(() => {
+    const stripeEmail = searchParams.get('email');
+    if (stripeEmail) {
+      setEmail(stripeEmail);
+      setIsSignUp(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const handleAuthRedirect = async () => {
@@ -58,14 +67,7 @@ export function Auth() {
     if (isSignUp) {
       const { error: signUpError } = await signUp(email, password);
       if (signUpError) {
-        setError(signUpError.message);
-      } else if (!searchParams.get('purchased')) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
-        } else {
-          setError('Failed to get user information');
-        }
+        setError(signUpError.message); 
       } else {
         toast.success('Please check your email to confirm your account');
         setIsSignUp(false);
@@ -126,16 +128,20 @@ export function Auth() {
           {error && (
             <div className="text-red-500 text-sm">{error}</div>
           )}
-
-          {isSignUp && !searchParams.get('purchased') && (
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              After signing up, you'll be redirected to complete your purchase.
-            </div>
+          
+          {!searchParams.get('email') && isSignUp && (
+            <a
+              href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII"
+              className="block w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700 transition-colors text-center mb-2 flex items-center justify-center gap-2"
+            >
+              <CreditCard size={20} />
+              Purchase Premium Access
+            </a>
           )}
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || (isSignUp && !searchParams.get('email'))}
             className="w-full bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
           >
             {isForgotPassword ? <KeyRound size={20} /> : (isSignUp ? <UserPlus size={20} /> : <LogIn size={20} />)}
