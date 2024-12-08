@@ -116,7 +116,7 @@ export function Auth() {
                 <h2 className="text-lg font-semibold">Choose your plan:</h2>
                 <div className="grid gap-3">
                   <a
-                    href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=monthly"
+                    href={`https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=monthly&success_url=${encodeURIComponent(`${window.location.origin}/auth?email=${customer.email}`)}`}
                     className="block w-full bg-blue-600 text-white rounded-lg p-4 hover:bg-blue-700 transition-colors text-center"
                   >
                     <div className="font-semibold text-lg">Monthly Plan</div>
@@ -124,7 +124,7 @@ export function Auth() {
                   </a>
                   
                   <a
-                    href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=yearly"
+                    href={`https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=yearly&success_url=${encodeURIComponent(`${window.location.origin}/auth?email=${customer.email}`)}`}
                     className="block w-full bg-green-600 text-white rounded-lg p-4 hover:bg-green-700 transition-colors text-center"
                   >
                     <div className="font-semibold text-lg">Yearly Plan</div>
