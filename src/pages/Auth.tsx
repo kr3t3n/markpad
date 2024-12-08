@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner'; 
-import { LogIn, UserPlus, Loader2, KeyRound, CreditCard } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, KeyRound, CreditCard, CheckCircle2 } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -85,14 +85,65 @@ export function Auth() {
   return (
     <div className="container mx-auto px-4 py-8"> 
       <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-semibold mb-6">
-          {isForgotPassword 
+        {isSignUp && !searchParams.get('email') ? (
+          <>
+            <h1 className="text-2xl font-semibold mb-4">Premium Access</h1>
+            <div className="space-y-4 mb-6">
+              <p className="text-gray-600 dark:text-gray-300">
+                Unlock all premium features and take your markdown editing to the next level.
+              </p>
+              
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold">What you'll get:</h2>
+                <ul className="space-y-2">
+                  {[
+                    'Cloud synchronization across devices',
+                    'Multiple document management',
+                    'Secure document storage',
+                    'Real-time autosave',
+                    'Document organization',
+                    'Priority support'
+                  ].map(feature => (
+                    <li key={feature} className="flex items-center gap-2">
+                      <CheckCircle2 className="text-green-500 flex-shrink-0" size={18} />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold">Choose your plan:</h2>
+                <div className="grid gap-3">
+                  <a
+                    href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=monthly"
+                    className="block w-full bg-blue-600 text-white rounded-lg p-4 hover:bg-blue-700 transition-colors text-center"
+                  >
+                    <div className="font-semibold text-lg">Monthly Plan</div>
+                    <div className="text-sm text-blue-100">$5/month</div>
+                  </a>
+                  
+                  <a
+                    href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=yearly"
+                    className="block w-full bg-green-600 text-white rounded-lg p-4 hover:bg-green-700 transition-colors text-center"
+                  >
+                    <div className="font-semibold text-lg">Yearly Plan</div>
+                    <div className="text-sm text-green-100">$50/year (Save $10)</div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <h1 className="text-2xl font-semibold mb-6">
+            {isForgotPassword 
             ? (searchParams.get('type') === 'recovery' ? 'Reset Password' : 'Forgot Password')
             : (isSignUp ? 'Create an Account' : 'Sign In')}
-        </h1>
+          </h1>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          {(!isForgotPassword || searchParams.get('type') !== 'recovery') && (
+          {(!isForgotPassword || searchParams.get('type') !== 'recovery') && !isSignUp && (
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1">
                 Email
@@ -127,16 +178,6 @@ export function Auth() {
 
           {error && (
             <div className="text-red-500 text-sm">{error}</div>
-          )}
-          
-          {!searchParams.get('email') && isSignUp && (
-            <a
-              href="https://buy.stripe.com/test_aEUdTPbkE7AueMEbII"
-              className="block w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700 transition-colors text-center mb-2 flex items-center justify-center gap-2"
-            >
-              <CreditCard size={20} />
-              Purchase Premium Access
-            </a>
           )}
 
           <button
