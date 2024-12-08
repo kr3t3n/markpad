@@ -2,25 +2,22 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { toast } from 'sonner'; 
-import { LogIn, UserPlus, Loader2, KeyRound, CreditCard, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { LogIn, Mail, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isExistingUser, setIsExistingUser] = useState(false);
   const [error, setError] = useState('');
-  const { signIn, signUp, resetPassword, isLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Pre-fill email from Stripe success redirect
   useEffect(() => {
     const stripeEmail = searchParams.get('email');
     if (stripeEmail) {
       setEmail(stripeEmail);
-      setIsSignUp(true);
+      handleMagicLink(stripeEmail);
     }
   }, [searchParams]);
 
@@ -36,195 +33,137 @@ export function Auth() {
     handleAuthRedirect();
   }, [navigate, searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    if (isForgotPassword) {
-      if (searchParams.get('type') === 'recovery') {
-        // Handle password reset
-        const { error: resetError } = await supabase.auth.updateUser({ password });
-        if (resetError) {
-          setError(resetError.message);
-        } else {
-          toast.success('Password updated successfully');
-          navigate('/auth');
-          setIsForgotPassword(false);
-        }
-      } else {
-        // Send reset password email
-        const { error: resetError } = await resetPassword(email);
-        if (resetError) {
-          setError(resetError.message);
-        } else {
-          toast.success('Check your email for the password reset link');
-          setIsForgotPassword(false);
-        }
+  const handleMagicLink = async (emailAddress: string) => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: emailAddress,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
+    });
+    setIsLoading(false);
+    
+    if (error) {
+      setError(error.message);
       return;
     }
+    
+    toast.success('Check your email for the magic link!');
+  };
 
-    if (isSignUp) {
-      const { error: signUpError } = await signUp(email, password);
-      if (signUpError) {
-        setError(signUpError.message); 
-      } else {
-        toast.success('Please check your email to confirm your account');
-        setIsSignUp(false);
-      }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isExistingUser) {
+      await handleMagicLink(email);
     } else {
-      const { error: signInError } = await signIn(email, password);
-      if (signInError) {
-        setError(signInError.message);
-      } else {
-        navigate('/');
-      }
+      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}`;
     }
   };
 
   return (
     <div className="container mx-auto px-4 py-8"> 
       <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        {isSignUp && !searchParams.get('email') ? (
-          <>
-            <h1 className="text-2xl font-semibold mb-4">Premium Access</h1>
-            <div className="space-y-4 mb-6">
-              <p className="text-gray-600 dark:text-gray-300">
-                Unlock all premium features and take your markdown editing to the next level.
-              </p>
+        {!searchParams.get('email') ? (
+          <div className="space-y-6">
+            <div className="flex gap-4 border-b dark:border-gray-700">
+              <button
+                onClick={() => setIsExistingUser(false)}
+                className={`pb-2 px-1 -mb-px ${!isExistingUser ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+              >
+                New User
+              </button>
+              <button
+                onClick={() => setIsExistingUser(true)}
+                className={`pb-2 px-1 -mb-px ${isExistingUser ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
+              >
+                Already Premium
+              </button>
+            </div>
+
+            <h1 className="text-2xl font-semibold">
+              {isExistingUser ? 'Welcome Back!' : 'Premium Access'}
+            </h1>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {!isExistingUser && (
+                <p className="text-gray-600 dark:text-gray-300">
+                  Unlock all premium features and take your markdown editing to the next level.
+                </p>
+              )}
               
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">What you'll get:</h2>
-                <ul className="space-y-2">
-                  {[
-                    'Cloud synchronization across devices',
-                    'Multiple document management',
-                    'Secure document storage',
-                    'Real-time autosave',
-                    'Document organization',
-                    'Priority support'
-                  ].map(feature => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <CheckCircle2 className="text-green-500 flex-shrink-0" size={18} />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold">Choose your plan:</h2>
-                <div className="grid gap-3">
-                  <a
-                    href={`https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=monthly&success_url=${encodeURIComponent(`${window.location.origin}/auth?email=${customer.email}`)}`}
-                    className="block w-full bg-blue-600 text-white rounded-lg p-4 hover:bg-blue-700 transition-colors text-center"
-                  >
-                    <div className="font-semibold text-lg">Monthly Plan</div>
-                    <div className="text-sm text-blue-100">$5/month</div>
-                  </a>
-                  
-                  <a
-                    href={`https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?price=yearly&success_url=${encodeURIComponent(`${window.location.origin}/auth?email=${customer.email}`)}`}
-                    className="block w-full bg-green-600 text-white rounded-lg p-4 hover:bg-green-700 transition-colors text-center"
-                  >
-                    <div className="font-semibold text-lg">Yearly Plan</div>
-                    <div className="text-sm text-green-100">$50/year (Save $10)</div>
-                  </a>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium mb-1">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-lg border dark:border-gray-700 dark:bg-gray-800 p-2"
+                    placeholder={isExistingUser ? "Enter your premium account email" : "Enter your email"}
+                    required
+                  />
                 </div>
+
+                {error && (
+                  <div className="text-red-500 text-sm">{error}</div>
+                )}
+
+                {!isExistingUser && (<div className="space-y-2">
+                  <h2 className="text-lg font-semibold">What you'll get:</h2>
+                  <ul className="space-y-2">
+                    {[
+                      'Cloud synchronization across devices',
+                      'Multiple document management',
+                      'Secure document storage',
+                      'Real-time autosave',
+                      'Document organization',
+                      'Priority support'
+                    ].map(feature => (
+                      <li key={feature} className="flex items-center gap-2">
+                        <CheckCircle2 className="text-green-500 flex-shrink-0" size={18} />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>)}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-blue-600 text-white rounded-lg py-3 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : isExistingUser ? (
+                    <>
+                      <LogIn size={20} />
+                      Sign In
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight size={20} />
+                      Continue to Payment
+                    </>
+                  )}
+                </button>
               </div>
-            </div>
-          </>
+            </form>
+          </div>
         ) : (
-          <h1 className="text-2xl font-semibold mb-6">
-            {isForgotPassword 
-            ? (searchParams.get('type') === 'recovery' ? 'Reset Password' : 'Forgot Password')
-            : (isSignUp ? 'Create an Account' : 'Sign In')}
-          </h1>
-        )}
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {(!isForgotPassword || searchParams.get('type') !== 'recovery') && !isSignUp && (
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border dark:border-gray-700 dark:bg-gray-800 p-2"
-                required
-              />
-            </div>
-          )}
-
-          {(!isForgotPassword || searchParams.get('type') === 'recovery') && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1">
-                {isForgotPassword ? 'New Password' : 'Password'}
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={isForgotPassword ? "new-password" : "current-password"}
-                className="w-full rounded-lg border dark:border-gray-700 dark:bg-gray-800 p-2"
-                required
-              />
-            </div>
-          )}
-
-          {error && (
-            <div className="text-red-500 text-sm">{error}</div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isLoading || (isSignUp && !searchParams.get('email'))}
-            className="w-full bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-          >
-            {isForgotPassword ? <KeyRound size={20} /> : (isSignUp ? <UserPlus size={20} /> : <LogIn size={20} />)}
-            {isLoading ? 'Loading...' : (
-              isForgotPassword 
-                ? (searchParams.get('type') === 'recovery' ? 'Reset Password' : 'Send Reset Link')
-                : (isSignUp ? 'Sign Up' : 'Sign In')
-            )}
-          </button>
-
-          <div className="flex flex-col gap-2">
-            {!isForgotPassword && (
-              <button
-                type="button"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-              </button>
-            )}
-            
-            {!isSignUp && !isForgotPassword && (
-              <button
-                type="button"
-                onClick={() => setIsForgotPassword(true)}
-                className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Forgot your password?
-              </button>
-            )}
-            
-            {isForgotPassword && (
-              <button
-                type="button"
-                onClick={() => setIsForgotPassword(false)}
-                className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Back to sign in
-              </button>
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold mb-4">Check Your Email</h1>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              We've sent you a magic link to sign in. Click the link in your email to continue.
+            </p>
+            {isLoading && (
+              <Loader2 className="animate-spin mx-auto" size={24} />
             )}
           </div>
-        </form>
+        )}
       </div>
     </div>
   );
