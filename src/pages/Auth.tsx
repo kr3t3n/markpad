@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, UserPlus, Loader2, KeyRound } from 'lucide-react';
+import { LogIn, UserPlus, Loader2, KeyRound, ExternalLink } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -59,6 +59,8 @@ export function Auth() {
       const { error: signUpError } = await signUp(email, password);
       if (signUpError) {
         setError(signUpError.message);
+      } else if (!searchParams.get('purchased')) {
+        window.location.href = 'https://buy.stripe.com/fZedUTdzQ2jTc247ss';
       } else {
         toast.success('Please check your email to confirm your account');
         setIsSignUp(false);
@@ -117,6 +119,12 @@ export function Auth() {
 
           {error && (
             <div className="text-red-500 text-sm">{error}</div>
+          )}
+
+          {isSignUp && !searchParams.get('purchased') && (
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              After signing up, you'll be redirected to complete your purchase.
+            </div>
           )}
 
           <button

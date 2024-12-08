@@ -23,13 +23,13 @@ export function Header() {
           <img 
             src="/favicon.svg" 
             alt="Markpad Logo" 
-            className="w-12 h-12 logo-image" 
+            className="w-16 h-16 sm:w-12 sm:h-12 logo-image" 
           />
           <div className="flex flex-col">
-            <h1 className="font-poppins text-[30px] leading-7 font-semibold">
+            <h1 className="font-poppins text-[28px] leading-7 sm:leading-8 font-semibold">
               markpad
             </h1>
-            <p className="font-poppins text-xs text-gray-600 dark:text-gray-400">
+            <p className="font-poppins text-xs text-gray-600 dark:text-gray-400 leading-3 sm:leading-4 mt-1 sm:mt-0">
               simple and beautiful markdown editor
             </p>
           </div>
@@ -38,7 +38,7 @@ export function Header() {
         <div className="flex items-center gap-4">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+            className="p-2 ml-4 sm:ml-0 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
@@ -54,12 +54,18 @@ export function Header() {
           )}
           <button
             onClick={handleAuth}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors sm:px-4 sm:py-2 p-2"
           >
             {user ? (
-              <><LogOut size={18} /> Sign Out</>
+              <>
+                <LogOut size={18} />
+                <span className="hidden sm:inline">Sign Out</span>
+              </>
             ) : (
-              <><LogIn size={18} /> Sign In</>
+              <>
+                <LogIn size={18} />
+                <span className="hidden sm:inline">Sign In</span>
+              </>
             )}
           </button>
         </div>

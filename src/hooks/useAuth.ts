@@ -36,7 +36,10 @@ export function useAuth() {
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin + '/auth/callback'
+        data: {
+          subscription_status: 'inactive'
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback?purchased=true`
       }
     });
     return { error };
@@ -54,6 +57,19 @@ export function useAuth() {
     return { error };
   };
 
+  const checkSubscription = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('subscription_status')
+      .eq('id', user.id)
+      .single();
+
+    return profile?.subscription_status === 'active';
+  };
+
   return {
     user,
     loading,
@@ -61,6 +77,7 @@ export function useAuth() {
     signUp,
     signOut,
     resetPassword,
+    checkSubscription,
     isLoading: loading
   };
 }
