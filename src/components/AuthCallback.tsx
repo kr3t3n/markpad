@@ -13,7 +13,6 @@ export function AuthCallback() {
       const token = searchParams.get('token');
       const type = searchParams.get('type');
       const code = searchParams.get('code');
-      const purchased = searchParams.get('purchased');
       
       if (code) {
         // Handle OAuth or magic link
@@ -23,20 +22,15 @@ export function AuthCallback() {
           navigate('/auth?error=true');
           return;
         }
-
-        if (purchased) {
-          // Update subscription status
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase
-              .from('profiles')
-              .update({ subscription_status: 'active' })
-              .eq('id', user.id);
-          }
-        }
         
         toast.success('Successfully authenticated!');
-        navigate('/');
+        // After email verification, redirect to payment
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
+        } else {
+          navigate('/auth');
+        }
         return;
       }
       

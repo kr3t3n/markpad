@@ -36,10 +36,7 @@ export function useAuth() {
       email,
       password,
       options: {
-        data: {
-          subscription_status: 'inactive'
-        },
-        emailRedirectTo: `${window.location.origin}/auth/callback?purchased=true`
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     });
     return { error };

@@ -116,6 +116,7 @@ export function Auth() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={isForgotPassword ? "new-password" : "current-password"}
                 className="w-full rounded-lg border dark:border-gray-700 dark:bg-gray-800 p-2"
                 required
               />
