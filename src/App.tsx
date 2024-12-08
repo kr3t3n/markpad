@@ -9,6 +9,7 @@ import { Contact } from './pages/Contact';
 import { Documents } from './pages/Documents';
 import { Toaster } from 'sonner';
 import { Auth } from './pages/Auth';
+import { AuthCallback } from './components/AuthCallback';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/edit/:id" element={<Editor />} />
         <Route path="/new" element={<Editor />} />

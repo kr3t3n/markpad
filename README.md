@@ -1,11 +1,65 @@
 # Markpad
 
 <div align="center">
-  <h3>A beautiful, free markdown editor for everyone</h3>
-  <p>Write markdown with real-time preview, rich formatting, and multiple export options.</p>
+  <h3>A beautiful markdown editor with cloud sync</h3>
+  <p>Write markdown with real-time preview, rich formatting, cloud storage, and multiple export options.</p>
 </div>
 
 ## ✨ Features
+
+### Free Features
+- 🔄 Real-time preview
+- ⌨️ Keyboard shortcuts
+- 🎨 Dark/Light mode
+- 💾 Local auto-save
+- 📱 Responsive design
+- 🔄 Vertical/Horizontal split layout
+- 📋 Copy markdown or formatted text
+- 📤 Export to multiple formats
+
+### Premium Features
+- ☁️ Cloud sync
+- 📝 Multiple documents
+- 📎 Document organization
+- 🔄 Real-time autosave
+- 🔒 Secure storage
+
+## 🚀 Getting Started
+
+### Development
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Environment Setup
+Create a `.env.local` file with:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## 🎯 Usage
+
+### Free Version
+1. Start typing in the editor panel
+2. Use the toolbar or keyboard shortcuts for formatting
+3. See your formatted text in real-time
+4. Copy or export your document
+
+### Premium Version
+1. Sign up for an account
+2. Create and manage multiple documents
+3. Access your documents from anywhere
+4. Automatic cloud backup
+
+## ⌨️ Keyboard Shortcuts
 
 - 📝 Real-time markdown preview
 - ⌨️ Keyboard shortcuts for quick formatting
@@ -57,12 +111,33 @@ npm run build
 - **Superscript**: Ctrl/Cmd + 6
 - **Subscript**: Ctrl/Cmd + 5
 
-## 🛠️ Tech Stack
+## 🔒 Authentication
+- Email-based authentication
+- Secure password reset
+- Email verification
+- Protected routes
+
+## 💾 Database Schema
+
+### Profiles
+- User profile management
+- Subscription status tracking
+- Stripe integration ready
+
+### Documents
+- Document storage
+- Automatic timestamps
+- Row-level security
+
+## 🛠️ Technologies
 
 - React 18
 - TypeScript
 - Vite
 - Tailwind CSS
+- Supabase
+- React Router DOM
+- Sonner (Toasts)
 - React Router DOM
 - Marked (Markdown parsing)
 - DocX (Word document generation)
@@ -75,40 +150,19 @@ markpad/
 │   ├── components/    # React components
 │   ├── pages/        # Route pages
 │   ├── hooks/        # Custom React hooks
+│   ├── lib/          # Core utilities
+│   ├── types/        # TypeScript types
 │   ├── utils/        # Utility functions
 │   └── main.tsx      # Entry point
 ├── public/           # Static assets
 └── dist/            # Production build
 ```
 
-## 🎨 Customization
-
-### Adding Custom Themes
-
-The app uses Tailwind CSS for styling. Customize the theme in `tailwind.config.js`:
-
-```js
-module.exports = {
-  theme: {
-    extend: {
-      // Add your custom colors, fonts, etc.
-    }
-  }
-}
-```
-
-### Adding Icons
-
-We use Lucide React for icons. Import icons from 'lucide-react':
-
-```tsx
-import { Bold, Italic, Link } from 'lucide-react';
-```
-
 ## 🔒 Privacy
 
-- All content is stored locally in your browser
-- No data is sent to any servers
+- Free version: All content stored locally
+- Premium version: Secure cloud storage
+- Email used only for authentication
 - Your privacy is our priority
 
 ## 🤝 Contributing

@@ -35,9 +35,9 @@ export function useAuth() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { 
-        emailRedirectTo: `${window.location.origin}/auth` 
-      } 
+      options: {
+        emailRedirectTo: window.location.origin + '/auth/callback'
+      }
     });
     return { error };
   };
@@ -47,12 +47,20 @@ export function useAuth() {
     return { error };
   };
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/auth/callback'
+    });
+    return { error };
+  };
+
   return {
     user,
     loading,
     signIn,
     signUp,
     signOut,
+    resetPassword,
     isLoading: loading
   };
 }
