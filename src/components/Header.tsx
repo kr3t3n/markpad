@@ -23,11 +23,16 @@ export function Header() {
           <img 
             src="/favicon.svg" 
             alt="Markpad Logo" 
-            className="w-7 h-7 logo-image" 
+            className="w-12 h-12 logo-image" 
           />
-          <h1 className="font-poppins text-base sm:text-xl font-semibold">
-            Markpad: simple and beautiful markdown editor
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="font-poppins text-[30px] leading-7 font-semibold">
+              markpad
+            </h1>
+            <p className="font-poppins text-xs text-gray-600 dark:text-gray-400">
+              simple and beautiful markdown editor
+            </p>
+          </div>
         </Link>
         
         <div className="flex items-center gap-4">
