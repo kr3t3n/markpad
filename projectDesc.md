@@ -2,7 +2,7 @@
 
 ## Overview
 
-Markpad is a modern, feature-rich markdown editor built with React and TypeScript. It provides a seamless writing experience with real-time preview, rich formatting options, and multiple export capabilities.
+Markpad is a modern, feature-rich markdown editor built with React and TypeScript. It provides a seamless writing experience with real-time preview, rich formatting options, and multiple export capabilities. The application is designed to be user-friendly, responsive, and accessible across all devices.
 
 ## Features
 
@@ -12,6 +12,7 @@ Markpad is a modern, feature-rich markdown editor built with React and TypeScrip
 - Support for headers, lists, code blocks, and more
 - Syntax highlighting for code blocks
 - Inline HTML support
+- Copy formatted text or markdown
 
 ### Text Formatting Options
 - Bold, italic, and underline
@@ -42,6 +43,12 @@ Markpad is a modern, feature-rich markdown editor built with React and TypeScrip
 - Collapsible panels
 - Clean, modern interface
 - Mobile-friendly design
+- Copy buttons for both markdown and formatted text
+
+### Additional Pages
+- Terms of Service
+- Privacy Policy
+- Contact Form
 
 ## Technical Stack
 
@@ -50,6 +57,7 @@ Markpad is a modern, feature-rich markdown editor built with React and TypeScrip
 - TypeScript
 - Vite
 - Tailwind CSS
+- React Router DOM
 
 ### Key Dependencies
 - marked: Markdown parsing and rendering
@@ -57,18 +65,30 @@ Markpad is a modern, feature-rich markdown editor built with React and TypeScrip
 - file-saver: File download handling
 - lucide-react: Icon components
 - js-cookie: Persistent storage
+- react-router-dom: Routing
 
 ### Development Tools
 - ESLint
 - PostCSS
 - Autoprefixer
 - TypeScript ESLint
+- Tailwind Forms
+- Tailwind Typography
 
 ## Project Structure
 
 ```
 src/
 ├── components/         # React components
+│   ├── Editor.tsx     # Main editor component
+│   ├── Header.tsx     # App header
+│   ├── Footer.tsx     # App footer
+│   ├── CopyButton.tsx # Copy functionality
+│   └── ...           # Other components
+├── pages/             # Route pages
+│   ├── Terms.tsx      # Terms of service
+│   ├── Privacy.tsx    # Privacy policy
+│   └── Contact.tsx    # Contact form
 ├── hooks/             # Custom React hooks
 ├── utils/             # Utility functions
 │   ├── markdown.ts    # Markdown processing

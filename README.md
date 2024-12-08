@@ -13,6 +13,7 @@
 - 💾 Auto-save content
 - 📱 Responsive design
 - 🔄 Vertical/Horizontal split layout
+- 📋 Copy markdown or formatted text
 - 📤 Export to multiple formats:
   - Markdown (.md)
   - Plain Text (.txt)
@@ -37,7 +38,8 @@ npm run build
 1. Start typing in the editor panel
 2. Use the toolbar or keyboard shortcuts for formatting
 3. See your formatted text in real-time in the preview panel
-4. Export your document in your preferred format
+4. Copy either markdown or formatted text
+5. Export your document in your preferred format
 
 ### ⌨️ Keyboard Shortcuts
 
@@ -52,6 +54,8 @@ npm run build
 - **Strikethrough**: Ctrl/Cmd + S
 - **Bullet List**: Ctrl/Cmd + 8
 - **Numbered List**: Ctrl/Cmd + 9
+- **Superscript**: Ctrl/Cmd + 6
+- **Subscript**: Ctrl/Cmd + 5
 
 ## 🛠️ Tech Stack
 
@@ -59,6 +63,7 @@ npm run build
 - TypeScript
 - Vite
 - Tailwind CSS
+- React Router DOM
 - Marked (Markdown parsing)
 - DocX (Word document generation)
 
@@ -68,6 +73,7 @@ npm run build
 markpad/
 ├── src/
 │   ├── components/    # React components
+│   ├── pages/        # Route pages
 │   ├── hooks/        # Custom React hooks
 │   ├── utils/        # Utility functions
 │   └── main.tsx      # Entry point
@@ -98,6 +104,12 @@ We use Lucide React for icons. Import icons from 'lucide-react':
 ```tsx
 import { Bold, Italic, Link } from 'lucide-react';
 ```
+
+## 🔒 Privacy
+
+- All content is stored locally in your browser
+- No data is sent to any servers
+- Your privacy is our priority
 
 ## 🤝 Contributing
 

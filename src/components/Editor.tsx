@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Cookies from 'js-cookie';
 import { clsx } from 'clsx';
 import { parseMarkdown, shortcuts, transformText, TextTransform } from '../utils/markdown';
 import { FormatCard } from './FormatCard';
 import { Card } from './Card';
+import { CopyButton } from './CopyButton';
 
 const STORAGE_KEY = 'markdown-content';
 const LAYOUT_KEY = 'markdown-layout';
@@ -30,6 +31,8 @@ export function Editor() {
     const saved = Cookies.get(PREVIEW_EXPANDED_KEY);
     return saved !== 'false';
   });
+
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const saved = Cookies.get(STORAGE_KEY);
@@ -110,9 +113,14 @@ export function Editor() {
     textarea.focus();
   };
 
+  const getFormattedText = () => {
+    if (!previewRef.current) return '';
+    return previewRef.current.innerText;
+  };
+
   return (
-    <div className="container mx-auto p-2 sm:p-4 flex-1 flex flex-col">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg flex-1 flex flex-col overflow-hidden">
+    <div className="container mx-auto px-0 sm:px-4 flex-1 flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-none sm:rounded-lg shadow-lg flex-1 flex flex-col overflow-hidden">
         <FormatCard
           isExpanded={isFormatExpanded}
           onToggle={() => setIsFormatExpanded(!isFormatExpanded)}
@@ -139,13 +147,16 @@ export function Editor() {
               !isVertical && !isEditorExpanded && "lg:basis-[40px]"
             )}
           >
-            <textarea
-              className="w-full flex-1 p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-none dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100 min-h-0"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Start writing markdown..."
-            />
+            <div className="relative flex-1">
+              <textarea
+                className="absolute inset-0 w-full h-full p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-none dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Start writing markdown..."
+              />
+              <CopyButton text={content} />
+            </div>
           </Card>
           
           <Card
@@ -160,10 +171,18 @@ export function Editor() {
               !isVertical && !isPreviewExpanded && "lg:basis-[40px]"
             )}
           >
-            <div 
-              className="prose dark:prose-invert max-w-none flex-1 p-4 border rounded-lg overflow-y-auto dark:border-gray-700 min-h-0"
-              dangerouslySetInnerHTML={{ __html: preview }}
-            />
+            <div className="relative flex-1">
+              <div 
+                ref={previewRef}
+                className="absolute inset-0 h-full prose dark:prose-invert max-w-none p-4 border rounded-lg overflow-y-auto dark:border-gray-700"
+                dangerouslySetInnerHTML={{ __html: preview }}
+              />
+              <CopyButton 
+                text={content}
+                getTextToCopy={getFormattedText}
+                className="!bg-gray-50/90 dark:!bg-gray-900/90"
+              />
+            </div>
           </Card>
         </div>
       </div>

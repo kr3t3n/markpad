@@ -17,7 +17,9 @@
     "js-cookie": "^3.0.5",
     "clsx": "^2.1.0",
     "docx": "^8.5.0",
-    "file-saver": "^2.0.5"
+    "file-saver": "^2.0.5",
+    "@fontsource/poppins": "^5.0.8",
+    "react-router-dom": "^6.22.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
@@ -35,6 +37,7 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "@tailwindcss/typography": "^0.5.10",
+    "@tailwindcss/forms": "^0.5.7",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
     "vite": "^5.4.2"
