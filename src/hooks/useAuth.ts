@@ -54,6 +54,17 @@ export function useAuth() {
 
       if (error) {
         console.error('OTP sign in error:', error);
+        
+        // Handle rate limit errors specifically
+        if (error.message?.toLowerCase().includes('rate limit')) {
+          return { 
+            error: new Error(
+              'Too many sign in attempts. Please wait a few minutes before trying again. ' +
+              'Note: You can only request 4 magic links per hour.'
+            ) 
+          };
+        }
+        
         return { error };
       }
 

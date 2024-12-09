@@ -49,7 +49,9 @@ export function Auth() {
     setError('');
     
     if (timeRemaining > 0) {
-      toast.error(`Please wait ${timeRemaining} seconds before requesting another magic link`);
+      const message = `Please wait ${timeRemaining} seconds before requesting another magic link`;
+      toast.error(message);
+      setError(message);
       setIsLoading(false);
       return;
     }
@@ -65,34 +67,33 @@ export function Auth() {
         const { error: signInError } = await signInWithOtp(emailAddress);
         if (signInError) {
           console.error('Sign in error:', signInError);
-          toast.error('Failed to send magic link. Please try again.');
-          setError(typeof signInError === 'object' && signInError !== null ? 
-            (signInError as { message?: string })?.message || 'Failed to send magic link' : 
-            'Failed to send magic link');
+          const errorMessage = signInError.message || 'Failed to send magic link. Please try again.';
+          toast.error(errorMessage);
+          setError(errorMessage);
+          
+          // If it's a rate limit error, set a longer cooldown
+          if (errorMessage.toLowerCase().includes('rate limit')) {
+            setTimeRemaining(300); // 5 minutes cooldown for rate limits
+          }
         } else {
           toast.success('Check your email for the magic link!');
-          setTimeRemaining(60); // Set cooldown timer
+          setTimeRemaining(60); // Normal cooldown
         }
         return;
       }
 
-      // If user doesn't exist or doesn't have active subscription, redirect to checkout
-      console.log('User needs subscription, redirecting to checkout');
-      toast.info('Redirecting to subscription page...');
-      const { url, error: stripeError } = await createCheckoutSession(emailAddress);
-      if (stripeError) {
-        console.error('Stripe checkout error:', stripeError);
-        toast.error('Failed to create checkout session. Please try again.');
-        return;
-      }
-      if (url) {
-        window.location.href = url;
-        return;
-      }
+      // If user doesn't exist or doesn't have active subscription, redirect to signup page
+      console.log('User needs to sign up first');
+      navigate('/signup', { 
+        state: { 
+          email: emailAddress,
+          message: 'Please complete your registration to continue.'
+        }
+      });
     } catch (error) {
       console.error('Authentication error:', error);
       toast.error('An error occurred. Please try again.');
-      setError('An unexpected error occurred');
+      setError('An unexpected error occurred. Please try again or contact support.');
     } finally {
       setIsLoading(false);
     }
