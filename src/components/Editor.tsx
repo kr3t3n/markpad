@@ -52,14 +52,15 @@ export function Editor() {
   useEffect(() => {
     if (id) {
       loadDocument();
-    } else if (!isNew) {
+    } else {
+      // Load from cookies if we're on the home page (no id)
       const saved = Cookies.get(STORAGE_KEY);
       if (saved) {
         setContent(saved);
         parseMarkdown(saved).then(parsed => setPreview(parsed));
       }
     }
-  }, [id, isNew]);
+  }, [id]);
 
   const loadDocument = async () => {
     if (!id) return;

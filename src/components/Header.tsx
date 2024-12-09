@@ -10,9 +10,15 @@ export function Header() {
 
   const handleAuth = async () => {
     if (user) {
-      await signOut();
+      try {
+        await signOut();
+        // No need to navigate here as signOut() already handles navigation
+      } catch (error) {
+        console.error('Error in handleAuth:', error);
+      }
+    } else {
+      navigate('/auth');
     }
-    navigate('/auth');
   };
 
   return (
