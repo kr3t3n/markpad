@@ -81,7 +81,8 @@ export function Auth() {
       setIsLoading(true);
       try {
         // Redirect to Stripe with prefilled email
-        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}`;
+        const successUrl = `${window.location.origin}/auth?email=${encodeURIComponent(email)}`;
+        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent(successUrl)}`;
       } catch (err) {
         console.error('Signup error:', err);
         setError('An unexpected error occurred. Please try again later.');
