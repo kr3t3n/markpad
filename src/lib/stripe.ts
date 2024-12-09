@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export async function createCheckoutSession(email: string, interval: 'monthly' | 'annual' = 'monthly') {
+export async function createCheckoutSession(email: string, plan: 'monthly' | 'yearly' = 'yearly') {
   try {
     // First check if user already exists with active subscription
     const { data: profile } = await supabase
@@ -13,46 +13,25 @@ export async function createCheckoutSession(email: string, interval: 'monthly' |
       return { url: null, error: 'An active subscription already exists for this email' };
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({ 
+    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      body: { 
         email,
-        interval,
-        successUrl: `${window.location.origin}/auth/callback`,
-        cancelUrl: `${window.location.origin}/auth`
-      })
+        plan
+      }
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('Checkout response error:', text);
-      try {
-        const data = JSON.parse(text);
-        throw new Error(data.error || 'Failed to create checkout session');
-      } catch (e) {
-        throw new Error('Failed to create checkout session');
-      }
+    if (error) {
+      console.error('Error creating checkout session:', error);
+      return { error: 'Failed to create checkout session' };
     }
 
-    const data = await response.json();
-    
-    if (!response.ok || !data.url) {
-      const error = data.error || 'Failed to create checkout session';
-      console.error('Checkout error:', error);
-      throw new Error(error);
+    if (!data?.url) {
+      return { error: 'No checkout URL returned' };
     }
 
     return { url: data.url, error: null };
   } catch (error) {
-    console.error('Checkout error:', error);
-    return { 
-      url: null, 
-      error: error instanceof Error ? error.message : 'Failed to initiate checkout'
-    };
+    console.error('Error in createCheckoutSession:', error);
+    return { error: 'An unexpected error occurred' };
   }
 }
