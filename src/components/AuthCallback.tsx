@@ -10,38 +10,87 @@ export function AuthCallback() {
 
   useEffect(() => {
     const handleAuthCallback = async () => {
-      const token = searchParams.get('token');
-      const type = searchParams.get('type');
-      const paymentSuccess = searchParams.get('payment_success');
-      const email = searchParams.get('email');
+      try {
+        const token = searchParams.get('token');
+        const type = searchParams.get('type');
+        const paymentSuccess = searchParams.get('payment_success');
+        const email = searchParams.get('email');
 
-      if (paymentSuccess === 'true' && email) {
-        await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`
+        if (paymentSuccess === 'true' && email) {
+          await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback`
+            }
+          });
+          toast.success('Please check your email for the magic link to sign in.');
+          navigate('/auth');
+          return;
+        }
+
+        // Handle magic link verification
+        if (token && type === 'magiclink' && email) {
+          const { error } = await supabase.auth.verifyOtp({
+            token,
+            type: 'magiclink',
+            email
+          });
+          
+          if (error) {
+            console.error('Magic link verification error:', error);
+            toast.error('Failed to verify magic link. Please try again.');
+            navigate('/auth');
+            return;
           }
-        });
-        toast.success('Please check your email for the magic link to sign in.');
+
+          toast.success('Successfully signed in!');
+          navigate('/');
+          return;
+        }
+
+        if (token && type === 'recovery' && email) {
+          const { error } = await supabase.auth.verifyOtp({
+            token,
+            type: 'recovery',
+            email
+          });
+
+          if (error) {
+            console.error('Recovery verification error:', error);
+            toast.error('Failed to verify recovery link. Please try again.');
+            navigate('/auth');
+            return;
+          }
+
+          navigate('/');
+          return;
+        }
+
+        if (token && type === 'signup' && email) {
+          const { error } = await supabase.auth.verifyOtp({
+            token,
+            type: 'signup',
+            email
+          });
+
+          if (error) {
+            console.error('Signup verification error:', error);
+            toast.error('Failed to verify signup. Please try again.');
+            navigate('/auth');
+            return;
+          }
+
+          navigate('/auth');
+          return;
+        }
+
+        // If we get here, we don't recognize the callback type
+        console.error('Unknown callback type:', { token, type, email });
+        toast.error('Invalid authentication callback. Please try again.');
         navigate('/auth');
-        return;
-      }
-
-      if (token && type === 'recovery' && email) {
-        await supabase.auth.verifyOtp({
-          token,
-          type: 'recovery',
-          email
-        });
-        navigate('/');
-      }
-
-      if (token && type === 'signup' && email) {
-        await supabase.auth.verifyOtp({
-          token,
-          type: 'signup',
-          email
-        });
+      } catch (error) {
+        console.error('Auth callback error:', error);
+        toast.error('An error occurred during authentication. Please try again.');
         navigate('/auth');
       }
     };
@@ -50,12 +99,13 @@ export function AuthCallback() {
   }, [searchParams, navigate]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 mb-4 mx-auto animate-spin text-blue-600" />
-        <h2 className="text-xl font-semibold mb-2">Processing authentication...</h2>
-        <p className="text-gray-600 dark:text-gray-400">Please wait while we verify your credentials.</p>
-      </div>
+    <div className="flex min-h-screen flex-col items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin" />
+      <p className="mt-4 text-sm text-gray-500">
+        Processing authentication...
+        <br />
+        Please wait while we verify your credentials.
+      </p>
     </div>
   );
 }

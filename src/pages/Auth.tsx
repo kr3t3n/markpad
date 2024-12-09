@@ -14,7 +14,7 @@ export function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const { user, signUp, checkUserExists } = useAuth();
+  const { user, checkUserExists, signInWithOtp } = useAuth();
   const locationState = location.state as { email?: string; message?: string } | null;
 
   useEffect(() => {
@@ -49,37 +49,46 @@ export function Auth() {
     setError('');
     
     if (timeRemaining > 0) {
-      setError('Please wait before requesting another link.');
+      toast.error(`Please wait ${timeRemaining} seconds before requesting another magic link`);
       setIsLoading(false);
       return;
     }
-    
+
     try {
-      if (isExistingUser) {
-        const exists = await checkUserExists(emailAddress);
-    
-        if (!exists) {
-          setError('No active premium subscription found with this email.');
+      const exists = await checkUserExists(emailAddress);
+      setIsExistingUser(exists);
+
+      if (!exists) {
+        // If user doesn't exist or doesn't have active subscription, redirect to checkout
+        const { url, error: stripeError } = await createCheckoutSession(emailAddress);
+        if (stripeError) {
+          console.error('Stripe checkout error:', stripeError);
+          toast.error('Failed to create checkout session. Please try again.');
+          setIsLoading(false);
+          return;
+        }
+        if (url) {
+          window.location.href = url;
           return;
         }
       }
 
-      // Send magic link
-      const { error } = await signUp(emailAddress, '');
-      if (error) {
-        if (error.message.toLowerCase().includes('rate limit')) {
-          setTimeRemaining(60);
-          setError('Please wait a minute before requesting another link.');
-        } else {
-          setError(error.message);
-        }
-        return;
+      // User exists and has active subscription, send magic link
+      const { error: signInError } = await signInWithOtp(emailAddress);
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        toast.error('Failed to send magic link. Please try again.');
+        setError(typeof signInError === 'object' && signInError !== null ? 
+          (signInError as { message?: string })?.message || 'Failed to send magic link' : 
+          'Failed to send magic link');
+      } else {
+        toast.success('Check your email for the magic link!');
+        setTimeRemaining(60); // Set cooldown timer
       }
-        
-      toast.success('Check your email for the magic link!');
-    } catch (err) {
-      console.error('Magic link error:', err);
-      setError('Failed to send magic link. Please try again.');
+    } catch (error) {
+      console.error('Authentication error:', error);
+      toast.error('An error occurred. Please try again.');
+      setError('An unexpected error occurred');
     } finally {
       setIsLoading(false);
     }

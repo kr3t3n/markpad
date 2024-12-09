@@ -42,6 +42,29 @@ export function useAuth() {
     return { error };
   };
 
+  const signInWithOtp = async (email: string): Promise<{ error: Error | null }> => {
+    try {
+      console.log('Attempting to sign in with OTP:', email);
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) {
+        console.error('OTP sign in error:', error);
+        return { error };
+      }
+
+      console.log('OTP email sent successfully');
+      return { error: null };
+    } catch (error) {
+      console.error('Unexpected error during OTP sign in:', error);
+      return { error: error as Error };
+    }
+  };
+
   const checkUserExists = async (email: string) => {
     try {
       // First check if the user exists and has an active subscription
@@ -106,6 +129,7 @@ export function useAuth() {
     loading,
     signIn,
     signUp,
+    signInWithOtp,
     signOut,
     resetPassword,
     checkSubscription,
