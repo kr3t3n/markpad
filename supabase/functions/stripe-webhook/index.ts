@@ -42,23 +42,12 @@ serve(async (req) => {
         const session = event.data.object;
         const { email } = session.customer_details || {};
 
-        if (!email) {
-          console.error('Missing email:', { email });
+        if (!email || !session.customer) {
+          console.error('Missing required data:', { email, customer: session.customer });
           return new Response('Missing required data', { status: 400 });
         }
 
         try {
-          // Create user if they don't exist
-          const { data: { user }, error: createError } = await supabase.auth.admin.createUser({
-            email: email,
-            email_confirm: true,
-            user_metadata: { subscription_status: 'active' }
-          });
-
-          if (createError && !createError.message.includes('already exists')) {
-            throw createError;
-          }
-
           // Update profile
           const { error: updateError } = await supabase
             .from('profiles')
@@ -69,7 +58,11 @@ serve(async (req) => {
             .eq('email', email);
 
           if (updateError) {
-            throw updateError;
+            console.error('Failed to update profile:', updateError);
+            return new Response('Failed to update profile', { 
+              status: 500,
+              headers: corsHeaders 
+            });
           }
         } catch (error) {
           console.error('Database error:', error);

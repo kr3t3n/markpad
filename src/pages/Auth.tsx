@@ -63,18 +63,18 @@ export function Auth() {
     setIsLoading(true);
     setError('');
     
+    if (timeRemaining > 0) {
+      setError('Please wait before requesting another link.');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
       if (isExistingUser) {
         const exists = await checkUserExists(emailAddress);
     
         if (!exists) {
-          setError('No premium account found with this email.');
-          return;
-        }
-      } else {
-        // For new users going through Stripe
-        const exists = await checkUserExists(emailAddress);
-        if (!exists) {
+          setError('No active premium subscription found with this email.');
           return;
         }
       }
@@ -109,7 +109,7 @@ export function Auth() {
     } else {
       const successUrl = `${window.location.origin}/auth?success=true&email=${encodeURIComponent(email)}`;
       const cancelUrl = `${window.location.origin}/auth?success=false`;
-      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${successUrl}&cancel_url=${cancelUrl}`;
+      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent(successUrl)}&cancel_url=${encodeURIComponent(cancelUrl)}`;
     }
   };
 

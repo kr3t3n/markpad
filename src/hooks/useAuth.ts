@@ -43,11 +43,17 @@ export function useAuth() {
   };
 
   const checkUserExists = async (email: string) => {
-    const { data, error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false }
-    });
-    return !error || error.message.includes('Email rate limit exceeded');
+    const { data: { users }, error } = await supabase
+      .from('profiles')
+      .select('subscription_status')
+      .eq('email', email)
+      .single();
+    
+    if (error) {
+      return false;
+    }
+    
+    return users?.subscription_status === 'active';
   };
 
   const signOut = async () => {
