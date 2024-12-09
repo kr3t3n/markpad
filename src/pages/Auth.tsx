@@ -49,7 +49,7 @@ export function Auth() {
     setError('');
     
     if (timeRemaining > 0) {
-      const message = `Please wait ${timeRemaining} seconds before requesting another magic link`;
+      const message = `Please wait ${timeRemaining} seconds before requesting another sign in link`;
       toast.error(message);
       setError(message);
       setIsLoading(false);
@@ -59,38 +59,39 @@ export function Auth() {
     try {
       console.log('Checking subscription for:', emailAddress);
       const exists = await checkUserExists(emailAddress);
-      setIsExistingUser(exists);
 
-      if (exists) {
-        // User exists and has active subscription, send magic link
-        console.log('User has active subscription, sending magic link');
-        const { error: signInError } = await signInWithOtp(emailAddress);
-        if (signInError) {
-          console.error('Sign in error:', signInError);
-          const errorMessage = signInError.message || 'Failed to send magic link. Please try again.';
-          toast.error(errorMessage);
-          setError(errorMessage);
-          
-          // If it's a rate limit error, set a longer cooldown
-          if (errorMessage.toLowerCase().includes('rate limit')) {
-            setTimeRemaining(300); // 5 minutes cooldown for rate limits
-          }
-        } else {
-          toast.success('Check your email for the magic link!');
-          setTimeRemaining(60); // Normal cooldown
-        }
-      } else {
-        // If user doesn't exist or doesn't have active subscription, redirect to signup page
-        console.log('User needs to sign up first');
-        setIsLoading(false); // Make sure to set loading to false before navigation
+      if (!exists) {
+        // Redirect to signup with email pre-populated
+        setIsLoading(false);
+        setIsExistingUser(false);
+        toast.info('Get started with Markpad Premium to access all features');
         navigate('/signup', { 
           state: { 
             email: emailAddress,
-            message: 'Please complete your registration to continue.'
-          },
-          replace: true // Use replace to prevent back button from showing blank page
+            message: 'Complete your registration to access premium features'
+          }
         });
         return;
+      }
+
+      // User exists and has active subscription, send sign in link
+      console.log('User has active subscription, sending sign in link');
+      const { error: signInError } = await signInWithOtp(emailAddress);
+      if (signInError) {
+        console.error('Sign in error:', signInError);
+        let errorMessage = signInError.message || 'Failed to send sign in link. Please try again.';
+        
+        // Make rate limit message more user-friendly
+        if (errorMessage.toLowerCase().includes('rate limit')) {
+          errorMessage = 'For security reasons, please wait a few minutes before requesting another sign in link.';
+          setTimeRemaining(300); // 5 minutes cooldown for rate limits
+        }
+        
+        toast.error(errorMessage);
+        setError(errorMessage);
+      } else {
+        toast.success('Check your email for the secure sign in link!');
+        setTimeRemaining(60); // Normal cooldown
       }
     } catch (error) {
       console.error('Authentication error:', error);
@@ -257,7 +258,7 @@ export function Auth() {
           <div className="text-center">
             <h1 className="text-2xl font-semibold mb-4">Check Your Email</h1>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
-              We've sent a magic link to <strong>{email}</strong>. Click the link in your email to continue.
+              We've sent a secure sign in link to <strong>{email}</strong>. Click the link in your email to continue.
             </p>
             {isLoading && (
               <Loader2 className="animate-spin mx-auto" size={24} />
