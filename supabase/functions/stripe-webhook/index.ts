@@ -41,30 +41,35 @@ serve(async (req) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const { email } = session.customer_details || {};
-        const clientReferenceId = session.client_reference_id;
 
-        if (!clientReferenceId || !email) {
-          console.error('Missing client_reference_id or email:', { clientReferenceId, email });
+        if (!email) {
+          console.error('Missing email:', { email });
           return new Response('Missing required data', { status: 400 });
         }
 
         try {
-          const { data: userData } = await supabase
+          // Create user if they don't exist
+          const { data: { user }, error: createError } = await supabase.auth.admin.createUser({
+            email: email,
+            email_confirm: true,
+            user_metadata: { subscription_status: 'active' }
+          });
+
+          if (createError && !createError.message.includes('already exists')) {
+            throw createError;
+          }
+
+          // Update profile
+          const { error: updateError } = await supabase
             .from('profiles')
             .update({ 
               subscription_status: 'active',
               stripe_customer_id: session.customer
             })
-            .eq('id', clientReferenceId)
-            .select()
-            .maybeSingle();
+            .eq('email', email);
 
-          if (!userData) {
-            console.error('User not found:', { clientReferenceId, email });
-            return new Response('User not found', { 
-              status: 404,
-              headers: corsHeaders 
-            });
+          if (updateError) {
+            throw updateError;
           }
         } catch (error) {
           console.error('Database error:', error);

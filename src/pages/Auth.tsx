@@ -8,8 +8,7 @@ export function Auth() {
   const [email, setEmail] = useState('');
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastAttempt, setLastAttempt] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);  
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -26,17 +25,8 @@ export function Auth() {
   useEffect(() => {
     const email = searchParams.get('email');
     if (email) {
-      const lastAttemptTime = localStorage.getItem('lastAuthAttempt');
-      const now = Date.now();
-      
-      if (lastAttemptTime && now - parseInt(lastAttemptTime) < 60000) {
-        const remaining = Math.ceil((60000 - (now - parseInt(lastAttemptTime))) / 1000);
-        setTimeRemaining(remaining);
-        setError(`Please wait ${remaining} seconds before requesting another link.`);
-      } else {
-        setEmail(email);
-        handleMagicLink(email);
-      }
+      setEmail(email);
+      handleMagicLink(email);
     }
   }, [searchParams]);
 
@@ -55,15 +45,14 @@ export function Auth() {
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
     setError('');
-    
-    const now = Date.now();
-    localStorage.setItem('lastAuthAttempt', now.toString());
-    setLastAttempt(now);
-    
+        
     const { error } = await supabase.auth.signInWithOtp({
       email: emailAddress,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          email: emailAddress
+        }
       }
     });
     setIsLoading(false);
@@ -71,10 +60,9 @@ export function Auth() {
     if (error) {
       if (error.message.toLowerCase().includes('rate limit')) {
         setTimeRemaining(60);
-        setError('Too many attempts. Please wait 60 seconds before trying again.');
+        setError('Please wait a minute before requesting another link.');
       } else {
         setError(error.message);
-        localStorage.removeItem('lastAuthAttempt');
       }
       return;
     }
@@ -85,54 +73,15 @@ export function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const lastAttemptTime = localStorage.getItem('lastAuthAttempt');
-    const now = Date.now();
-    
-    if (lastAttemptTime && now - parseInt(lastAttemptTime) < 60000) {
-      const remaining = Math.ceil((60000 - (now - parseInt(lastAttemptTime))) / 1000);
-      setTimeRemaining(remaining);
-      setError(`Please wait ${remaining} seconds before trying again.`);
-      return;
-    }
-    
-    setLastAttempt(now);
     setError('');
     
     if (isExistingUser) {
-      localStorage.setItem('lastAuthAttempt', now.toString());
       await handleMagicLink(email);
     } else {
       setIsLoading(true);
       try {
-        // Generate a temporary password that meets requirements
-        const tempPassword = `${crypto.randomUUID().slice(0, 36)}#1Aa`;
-        
-        const { data: { user }, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: tempPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`
-          }
-        });
-        
-        if (signUpError) {
-          if (signUpError.message.toLowerCase().includes('rate limit')) {
-            setTimeRemaining(60);
-            setError('Too many attempts. Please wait 60 seconds before trying again.');
-            localStorage.setItem('lastAuthAttempt', now.toString());
-          } else {
-            setError(signUpError.message);
-          }
-          return;
-        }
-        
-        if (!user?.id) {
-          setError('Failed to create account');
-          return;
-        }
-        
-        // Redirect to Stripe with the user ID
-        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
+        // Redirect to Stripe with prefilled email
+        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}`;
       } catch (err) {
         console.error('Signup error:', err);
         setError('An unexpected error occurred. Please try again later.');
