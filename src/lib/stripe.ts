@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export async function createCheckoutSession(email: string) {
+export async function createCheckoutSession(email: string, interval: 'monthly' | 'annual' = 'monthly') {
   try {
     const response = await fetch('/.netlify/functions/create-checkout-session', {
       method: 'POST',
@@ -9,6 +9,7 @@ export async function createCheckoutSession(email: string) {
       },
       body: JSON.stringify({ 
         email,
+        interval,
         successUrl: `${window.location.origin}/auth/callback`,
         cancelUrl: `${window.location.origin}/auth`
       })

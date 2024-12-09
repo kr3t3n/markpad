@@ -1,6 +1,11 @@
 import { Handler } from '@netlify/functions';
 import Stripe from 'stripe';
 
+const PRICE_LOOKUP = {
+  monthly: process.env.STRIPE_PRICE_MONTHLY_ID,
+  annual: process.env.STRIPE_PRICE_ANNUAL_ID
+};
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 });
@@ -14,7 +19,7 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    const { email, successUrl, cancelUrl } = JSON.parse(event.body || '{}');
+    const { email, successUrl, cancelUrl, interval = 'monthly' } = JSON.parse(event.body || '{}');
 
     if (!email || !successUrl || !cancelUrl) {
       return {
@@ -23,10 +28,18 @@ const handler: Handler = async (event) => {
       };
     }
 
+    const priceId = PRICE_LOOKUP[interval as keyof typeof PRICE_LOOKUP];
+    if (!priceId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid pricing interval' })
+      };
+    }
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
-        price: process.env.STRIPE_PRICE_ID,
+        price: priceId,
         quantity: 1,
       }],
       mode: 'subscription',
