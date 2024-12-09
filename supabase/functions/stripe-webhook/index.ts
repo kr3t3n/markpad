@@ -78,17 +78,44 @@ serve(async (req) => {
         const checkoutSession = event.data.object as Stripe.Checkout.Session;
         if (checkoutSession.mode === 'subscription') {
           const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
-          await supabase
+          const email = checkoutSession.customer_details?.email;
+          
+          if (!email) {
+            console.error('No email found in checkout session');
+            break;
+          }
+
+          // First check if profile exists
+          const { data: existingProfile } = await supabase
             .from('profiles')
-            .upsert({
-              email: checkoutSession.customer_details?.email,
-              stripe_customer_id: checkoutSession.customer as string,
-              subscription_status: 'active',
-              subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'email'
-            });
+            .select('id')
+            .eq('email', email)
+            .single();
+
+          if (existingProfile) {
+            // Update existing profile
+            await supabase
+              .from('profiles')
+              .update({
+                stripe_customer_id: checkoutSession.customer as string,
+                subscription_status: 'active',
+                subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingProfile.id);
+          } else {
+            // Create new profile
+            await supabase
+              .from('profiles')
+              .insert({
+                email,
+                stripe_customer_id: checkoutSession.customer as string,
+                subscription_status: 'active',
+                subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+          }
         }
         break;
 

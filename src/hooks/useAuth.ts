@@ -43,22 +43,34 @@ export function useAuth() {
   };
 
   const checkUserExists = async (email: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('subscription_status, email')
-      .eq('email', email)
-      .single();
-    
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No matching row found
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('subscription_status, subscription_end_date')
+        .eq('email', email)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No matching row found
+          return false;
+        }
+        console.error('Database error:', error);
         return false;
       }
-      console.error('Database error:', error);
+      
+      if (!data) return false;
+
+      // Check if subscription is active and not expired
+      const isActive = data.subscription_status === 'active';
+      const endDate = data.subscription_end_date ? new Date(data.subscription_end_date) : null;
+      const isExpired = endDate && endDate < new Date();
+
+      return isActive && !isExpired;
+    } catch (error) {
+      console.error('Error checking user subscription:', error);
       return false;
     }
-    
-    return data?.subscription_status === 'active';
   };
 
   const signOut = async () => {
