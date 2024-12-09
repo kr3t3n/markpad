@@ -3,13 +3,13 @@ import { corsHeaders } from '../_shared/cors.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
-  // This is needed to use the Fetch API rather than Node's http client
   apiVersion: '2022-11-15',
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-const MONTHLY_PRICE_ID = Deno.env.get('STRIPE_MONTHLY_PRICE_ID')
-const YEARLY_PRICE_ID = Deno.env.get('STRIPE_YEARLY_PRICE_ID')
+// Use the correct environment variable names
+const MONTHLY_PRICE_ID = Deno.env.get('STRIPE_PRICE_MONTHLY_ID')
+const YEARLY_PRICE_ID = Deno.env.get('STRIPE_PRICE_ANNUAL_ID')
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -29,8 +29,11 @@ serve(async (req) => {
     const priceId = plan === 'monthly' ? MONTHLY_PRICE_ID : YEARLY_PRICE_ID
 
     if (!priceId) {
+      console.error('Price ID not found:', { plan, MONTHLY_PRICE_ID, YEARLY_PRICE_ID })
       throw new Error(`Price ID not found for plan: ${plan}`)
     }
+
+    console.log('Creating checkout session:', { email, plan, priceId })
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -64,7 +67,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Checkout session error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.toString()
+      }),
       {
         headers: {
           ...corsHeaders,
