@@ -11,33 +11,47 @@ export function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        const token = searchParams.get('token');
+        // Log all search params for debugging
+        console.log('Auth callback params:', Object.fromEntries(searchParams.entries()));
+
+        // Get hash parameters if any (Supabase sometimes puts params in hash)
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        console.log('Hash params:', Object.fromEntries(hashParams.entries()));
+
+        const token = searchParams.get('token') || hashParams.get('access_token');
+        const email = searchParams.get('email') || hashParams.get('email');
         const type = searchParams.get('type');
         const paymentSuccess = searchParams.get('payment_success');
-        const email = searchParams.get('email');
 
+        // Handle Stripe redirect first
         if (paymentSuccess === 'true' && email) {
-          await supabase.auth.signInWithOtp({
+          console.log('Processing payment success callback for:', email);
+          const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
               emailRedirectTo: `${window.location.origin}/auth/callback`
             }
           });
+
+          if (error) {
+            console.error('Failed to send magic link after payment:', error);
+            toast.error('Failed to send sign in link. Please try again.');
+            navigate('/auth');
+            return;
+          }
+
           toast.success('Please check your email for the magic link to sign in.');
           navigate('/auth');
           return;
         }
 
-        // Handle magic link verification
-        if (token && type === 'magiclink' && email) {
-          const { error } = await supabase.auth.verifyOtp({
-            token,
-            type: 'magiclink',
-            email
-          });
+        // Handle Supabase magic link
+        if (token) {
+          console.log('Processing magic link callback with token');
+          const { error } = await supabase.auth.getSession();
           
           if (error) {
-            console.error('Magic link verification error:', error);
+            console.error('Session error:', error);
             toast.error('Failed to verify magic link. Please try again.');
             navigate('/auth');
             return;
@@ -48,44 +62,8 @@ export function AuthCallback() {
           return;
         }
 
-        if (token && type === 'recovery' && email) {
-          const { error } = await supabase.auth.verifyOtp({
-            token,
-            type: 'recovery',
-            email
-          });
-
-          if (error) {
-            console.error('Recovery verification error:', error);
-            toast.error('Failed to verify recovery link. Please try again.');
-            navigate('/auth');
-            return;
-          }
-
-          navigate('/');
-          return;
-        }
-
-        if (token && type === 'signup' && email) {
-          const { error } = await supabase.auth.verifyOtp({
-            token,
-            type: 'signup',
-            email
-          });
-
-          if (error) {
-            console.error('Signup verification error:', error);
-            toast.error('Failed to verify signup. Please try again.');
-            navigate('/auth');
-            return;
-          }
-
-          navigate('/auth');
-          return;
-        }
-
         // If we get here, we don't recognize the callback type
-        console.error('Unknown callback type:', { token, type, email });
+        console.error('Unknown callback type:', { token, email, type, paymentSuccess });
         toast.error('Invalid authentication callback. Please try again.');
         navigate('/auth');
       } catch (error) {

@@ -47,6 +47,9 @@ serve(async (req) => {
       success_url: `${successUrl}?payment_success=true&email=${encodeURIComponent(email)}`,
       cancel_url: cancelUrl,
       customer_email: email,
+      metadata: {
+        email: email
+      }
     });
 
     return new Response(
