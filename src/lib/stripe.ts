@@ -13,7 +13,7 @@ export async function createCheckoutSession(email: string, interval: 'monthly' |
       return { url: null, error: 'An active subscription already exists for this email' };
     }
 
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-webhook`, {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

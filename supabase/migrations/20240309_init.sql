@@ -13,6 +13,20 @@ create table if not exists public.profiles (
 drop policy if exists "Allow public read access" on public.profiles;
 drop policy if exists "Allow service role to manage profiles" on public.profiles;
 
+-- Add subscription_end_date column if it doesn't exist
+do $$ 
+begin 
+  if not exists (
+    select column_name 
+    from information_schema.columns 
+    where table_name = 'profiles' 
+    and column_name = 'subscription_end_date'
+  ) then
+    alter table public.profiles
+    add column subscription_end_date timestamptz;
+  end if;
+end $$;
+
 -- Update table structure if needed (this won't affect existing data)
 alter table public.profiles 
   alter column email set not null;

@@ -47,7 +47,7 @@ export function useAuth() {
       // First check if the user exists and has an active subscription
       const { data, error } = await supabase
         .from('profiles')
-        .select('subscription_status, subscription_end_date')
+        .select('subscription_status')
         .eq('email', email.toLowerCase())
         .maybeSingle();
 
@@ -61,18 +61,11 @@ export function useAuth() {
         return false;
       }
 
-      // Check if subscription is active and not expired
+      // Check if subscription is active
       const isActive = data.subscription_status === 'active';
-      const endDate = data.subscription_end_date ? new Date(data.subscription_end_date) : null;
-      const isExpired = endDate && endDate < new Date();
-
+      
       if (!isActive) {
         console.log('Subscription not active for email:', email);
-        return false;
-      }
-
-      if (isExpired) {
-        console.log('Subscription expired for email:', email);
         return false;
       }
 
