@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function Privacy() {
   return (
     <div className="container mx-auto px-4 py-8">

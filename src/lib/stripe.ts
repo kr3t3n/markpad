@@ -13,11 +13,12 @@ export async function createCheckoutSession(email: string, interval: 'monthly' |
       return { url: null, error: 'An active subscription already exists for this email' };
     }
 
-    const response = await fetch('/.netlify/functions/create-checkout-session', {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-webhook`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
       },
       body: JSON.stringify({ 
         email,

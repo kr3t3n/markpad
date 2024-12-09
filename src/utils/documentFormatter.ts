@@ -1,5 +1,4 @@
-import { TextRun } from 'docx';
-import type { HeadingLevel } from 'docx';
+import { TextRun, HeadingLevel } from 'docx';
 
 interface FormattedBlock {
   type: 'paragraph' | 'heading' | 'code' | 'list';
@@ -94,8 +93,8 @@ export function formatTextContent(text: string): TextRun[] {
   });
 
   // Links
-  currentText = currentText.replace(/\[(.*?)\]\((.*?)\)/g, (_, text, url) => {
-    runs.push(new TextRun({ text: text, underline: true }));
+  currentText = currentText.replace(/\[(.*?)\]\((.*?)\)/g, (_, text) => {
+    runs.push(new TextRun({ text: text, underline: { type: 'single' } }));
     return '';
   });
 
@@ -109,12 +108,12 @@ export function formatTextContent(text: string): TextRun[] {
 
 export function getHeadingLevel(level: number): typeof HeadingLevel[keyof typeof HeadingLevel] {
   switch (level) {
-    case 1: return 'HEADING1';
-    case 2: return 'HEADING2';
-    case 3: return 'HEADING3';
-    case 4: return 'HEADING4';
-    case 5: return 'HEADING5';
-    default: return 'HEADING6';
+    case 1: return HeadingLevel.HEADING_1;
+    case 2: return HeadingLevel.HEADING_2;
+    case 3: return HeadingLevel.HEADING_3;
+    case 4: return HeadingLevel.HEADING_4;
+    case 5: return HeadingLevel.HEADING_5;
+    default: return HeadingLevel.HEADING_6;
   }
 }
 
@@ -141,10 +140,26 @@ export function createOdtContent(blocks: FormattedBlock[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
                 xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-                xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+                xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+                xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
   <office:styles>
     <style:style style:name="Heading_1" style:family="paragraph">
-      <style:text-properties fo:font-size="24pt" fo:font-weight="bold"/>
+      <style:text-properties fo:font-size="24pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
+    </style:style>
+    <style:style style:name="Heading_2" style:family="paragraph">
+      <style:text-properties fo:font-size="18pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
+    </style:style>
+    <style:style style:name="Heading_3" style:family="paragraph">
+      <style:text-properties fo:font-size="14pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
+    </style:style>
+    <style:style style:name="Heading_4" style:family="paragraph">
+      <style:text-properties fo:font-size="12pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
+    </style:style>
+    <style:style style:name="Heading_5" style:family="paragraph">
+      <style:text-properties fo:font-size="10pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
+    </style:style>
+    <style:style style:name="Heading_6" style:family="paragraph">
+      <style:text-properties fo:font-size="9pt" fo:font-weight="bold" fo:border="1pt solid #000000"/>
     </style:style>
     <style:style style:name="Preformatted_Text" style:family="paragraph">
       <style:text-properties style:font-name="Courier New"/>

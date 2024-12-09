@@ -56,7 +56,7 @@ export function Editor() {
       const saved = Cookies.get(STORAGE_KEY);
       if (saved) {
         setContent(saved);
-        setPreview(parseMarkdown(saved));
+        parseMarkdown(saved).then(parsed => setPreview(parsed));
       }
     }
   }, [id, isNew]);
@@ -73,16 +73,16 @@ export function Editor() {
     if (data) {
       setTitle(data.title);
       setContent(data.content);
-      parseMarkdown(data.content).then(setPreview);
+      parseMarkdown(data.content).then(parsed => setPreview(parsed));
     }
   };
 
-  useEffect(() => {
-    if (!id) {
-      Cookies.set(STORAGE_KEY, content, { expires: 365 });
-    }
-    parseMarkdown(content).then(setPreview);
-  }, [content]);
+  const handleContentChange = async (newContent: string) => {
+    setContent(newContent);
+    const parsedContent = await parseMarkdown(newContent);
+    setPreview(parsedContent);
+    Cookies.set(STORAGE_KEY, newContent);
+  };
 
   useEffect(() => {
     Cookies.set(LAYOUT_KEY, isVertical ? 'vertical' : 'horizontal', { expires: 365 });
@@ -113,7 +113,7 @@ export function Editor() {
             content.substring(0, start) +
             before + selected + after +
             content.substring(end);
-          setContent(newContent);
+          handleContentChange(newContent);
         }
       });
     }
@@ -130,7 +130,7 @@ export function Editor() {
       content.substring(0, start) +
       before + selected + after +
       content.substring(end);
-    setContent(newContent);
+    handleContentChange(newContent);
     textarea.focus();
   };
 
@@ -146,7 +146,7 @@ export function Editor() {
       content.substring(0, start) +
       transformed +
       content.substring(end);
-    setContent(newContent);
+    handleContentChange(newContent);
     textarea.focus();
   };
 
@@ -263,7 +263,7 @@ export function Editor() {
               <textarea
                 className="absolute inset-0 w-full h-full p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-none dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => handleContentChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Start writing markdown..."
               />

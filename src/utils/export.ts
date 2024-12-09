@@ -1,5 +1,5 @@
 import { saveAs } from 'file-saver';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { parseMarkdownToBlocks, formatTextContent, getHeadingLevel, createOdtContent } from './documentFormatter';
 
 export const exportToMarkdown = (content: string) => {

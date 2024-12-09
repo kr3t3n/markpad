@@ -1,4 +1,4 @@
-import { serve } from 'https://deno.fresh.dev/std@v1/http/server.ts';
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import Stripe from 'https://esm.sh/stripe@13.11.0';
 
@@ -22,6 +22,42 @@ serve(async (req) => {
   }
 
   try {
+    // Handle POST request for creating checkout session
+    if (req.method === 'POST') {
+      const { email, interval, successUrl, cancelUrl } = await req.json();
+      
+      const priceId = interval === 'annual' 
+        ? Deno.env.get('STRIPE_PRICE_ANNUAL_ID')
+        : Deno.env.get('STRIPE_PRICE_MONTHLY_ID');
+
+      if (!priceId) {
+        return new Response(
+          JSON.stringify({ error: 'Price ID not configured' }), 
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        customer_email: email,
+      });
+
+      return new Response(
+        JSON.stringify({ url: session.url }), 
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Handle Stripe webhook events
     const signature = req.headers.get('stripe-signature');
     if (!signature) {
       return new Response('No signature', { status: 400 });

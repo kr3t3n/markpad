@@ -65,21 +65,19 @@ export function AuthCallback() {
       try {
         if (type === 'recovery') {
           // Handle password reset
-          const { error } = await supabase.auth.verifyOtp({ 
+          await supabase.auth.verifyOtp({ 
             token,
             type: 'recovery',
+            email: searchParams.get('email') || ''
           });
-          if (error) throw error;
-          
           navigate('/auth');
         } else if (type === 'signup') {
           // Handle email verification
-          const { error } = await supabase.auth.verifyOtp({
+          await supabase.auth.verifyOtp({
             token,
             type: 'signup',
+            email: searchParams.get('email') || ''
           });
-          if (error) throw error;
-          
           navigate('/auth');
         }
       } catch (error) {

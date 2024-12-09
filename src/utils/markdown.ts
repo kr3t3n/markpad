@@ -1,11 +1,5 @@
 import { marked } from 'marked';
 
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 export const parseMarkdown = async (text: string): Promise<string> => {
   return marked(text, { breaks: true, async: true });
 };
