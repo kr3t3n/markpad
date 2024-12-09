@@ -74,75 +74,50 @@ serve(async (req) => {
     }
 
     switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const { email } = session.customer_details || {};
-
-        if (!email || !session.customer) {
-          console.error('Missing required data:', { email, customer: session.customer });
-          return new Response('Missing required data', { status: 400 });
-        }
-
-        try {
-          // Create user if doesn't exist
-          const { data: existingUser } = await supabase.auth.admin.listUsers({
-            filter: { email }
-          });
-
-          if (!existingUser?.users?.length) {
-            const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-              email,
-              email_confirm: true,
-              user_metadata: { stripe_customer_id: session.customer }
-            });
-
-            if (createError) {
-              console.error('Failed to create user:', createError);
-              return new Response('Failed to create user', { 
-                status: 500,
-                headers: corsHeaders 
-              });
-            }
-          }
-
-          // Update profile
-          const { error: updateError } = await supabase
+      case 'checkout.session.completed':
+        const checkoutSession = event.data.object as Stripe.Checkout.Session;
+        if (checkoutSession.mode === 'subscription') {
+          const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
+          await supabase
             .from('profiles')
-            .update({ 
+            .upsert({
+              email: checkoutSession.customer_details?.email,
+              stripe_customer_id: checkoutSession.customer as string,
               subscription_status: 'active',
-              stripe_customer_id: session.customer,
-              email
-            })
-            .eq('email', email);
-
-          if (updateError) {
-            console.error('Failed to update profile:', updateError);
-            return new Response('Failed to update profile', { 
-              status: 500,
-              headers: corsHeaders 
+              subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'email'
             });
-          }
-        } catch (error) {
-          console.error('Database error:', error);
-          return new Response('Database error', { 
-            status: 500,
-            headers: corsHeaders 
-          });
         }
         break;
-      }
 
-      case 'customer.subscription.deleted':
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object;
-        const status = subscription.status === 'active' ? 'active' : 'inactive';
-
+      case 'customer.subscription.updated':
+        const updatedSubscription = event.data.object as Stripe.Subscription;
         await supabase
           .from('profiles')
-          .update({ subscription_status: status })
-          .eq('stripe_customer_id', subscription.customer);
+          .update({
+            subscription_status: updatedSubscription.status === 'active' ? 'active' : 'past_due',
+            subscription_end_date: new Date(updatedSubscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('stripe_customer_id', updatedSubscription.customer);
         break;
-      }
+
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object as Stripe.Subscription;
+        await supabase
+          .from('profiles')
+          .update({
+            subscription_status: 'canceled',
+            subscription_end_date: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('stripe_customer_id', deletedSubscription.customer);
+        break;
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
     }
 
     return new Response(JSON.stringify({ received: true }), {

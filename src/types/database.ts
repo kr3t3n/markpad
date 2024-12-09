@@ -1,8 +1,10 @@
 export interface Profile {
   id: string;
   user_id: string;
+  email: string;
   stripe_customer_id: string | null;
   subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled';
+  subscription_end_date: string | null;
   created_at: string;
   updated_at: string;
 }
