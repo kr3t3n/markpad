@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -10,8 +10,18 @@ export function Auth() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastAttempt, setLastAttempt] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining(prev => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [timeRemaining]);
 
   useEffect(() => {
     const email = searchParams.get('email');
@@ -54,10 +64,12 @@ export function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if enough time has passed since last attempt (30 seconds)
+    // Check if enough time has passed since last attempt (60 seconds)
     const now = Date.now();
-    if (now - lastAttempt < 30000) {
-      setError('Please wait 30 seconds before trying again');
+    if (now - lastAttempt < 60000) {
+      const remaining = Math.ceil((60000 - (now - lastAttempt)) / 1000);
+      setTimeRemaining(remaining);
+      setError(`Rate limit exceeded. Please wait ${remaining} seconds before trying again.`);
       return;
     }
     
@@ -67,30 +79,42 @@ export function Auth() {
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      // First create a temporary user and get their ID
-      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: `${crypto.randomUUID()}${crypto.randomUUID()}`, // Longer random password
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+      setIsLoading(true);
+      try {
+        // Generate a temporary password that meets requirements
+        const tempPassword = `${crypto.randomUUID().slice(0, 36)}#1Aa`;
+        
+        const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password: tempPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`
+          }
+        });
+        
+        if (signUpError) {
+          if (signUpError.message.toLowerCase().includes('rate limit')) {
+            setTimeRemaining(60);
+            setError('Too many attempts. Please wait 60 seconds before trying again.');
+          } else {
+            setError(signUpError.message);
+          }
+          return;
         }
-      });
-      
-      if (signUpError) {
-        const message = signUpError.message.toLowerCase().includes('rate limit')
-          ? 'Too many attempts. Please try again in 30 seconds.'
-          : signUpError.message;
-        setError(message);
-        return;
+        
+        if (!user?.id) {
+          setError('Failed to create account');
+          return;
+        }
+        
+        // Redirect to Stripe with the user ID
+        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
+      } catch (err) {
+        console.error('Signup error:', err);
+        setError('An unexpected error occurred. Please try again later.');
+      } finally {
+        setIsLoading(false);
       }
-      
-      if (!user?.id) {
-        setError('Failed to create account');
-        return;
-      }
-      
-      // Redirect to Stripe with the user ID as client_reference_id
-      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
     }
   };
 
@@ -142,8 +166,12 @@ export function Auth() {
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/50 p-3 rounded-lg">
-                    <AlertCircle size={16} className="flex-shrink-0" />
+                  <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/50 p-4 rounded-lg">
+                    {timeRemaining > 0 ? (
+                      <Clock size={16} className="flex-shrink-0 animate-pulse" />
+                    ) : (
+                      <AlertCircle size={16} className="flex-shrink-0" />
+                    )}
                     <span>{error}</span>
                   </div>
                 )}
@@ -169,11 +197,16 @@ export function Auth() {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-blue-600 text-white rounded-lg py-3 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  disabled={isLoading || timeRemaining > 0}
+                  className="w-full bg-blue-600 text-white rounded-lg py-3 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <Loader2 className="animate-spin" size={20} />
+                  ) : timeRemaining > 0 ? (
+                    <>
+                      <Clock size={20} className="animate-pulse" />
+                      Wait {timeRemaining}s
+                    </>
                   ) : isExistingUser ? (
                     <>
                       <LogIn size={20} />
