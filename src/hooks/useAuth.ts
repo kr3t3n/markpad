@@ -43,17 +43,18 @@ export function useAuth() {
   };
 
   const checkUserExists = async (email: string) => {
-    const { data: { users }, error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('subscription_status')
       .eq('email', email)
       .single();
     
     if (error) {
+      console.error('Error checking user:', error);
       return false;
     }
     
-    return users?.subscription_status === 'active';
+    return data?.subscription_status === 'active';
   };
 
   const signOut = async () => {

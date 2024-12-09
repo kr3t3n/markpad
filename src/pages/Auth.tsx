@@ -62,6 +62,7 @@ export function Auth() {
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
     setError('');
+    setMagicLinkSent(false);
     
     if (timeRemaining > 0) {
       setError('Please wait before requesting another link.');
@@ -92,7 +93,9 @@ export function Auth() {
       }
         
       toast.success('Check your email for the magic link!');
+      setMagicLinkSent(true);
     } catch (err) {
+      console.error('Magic link error:', err);
       setError('Failed to send magic link. Please try again.');
     } finally {
       setIsLoading(false);

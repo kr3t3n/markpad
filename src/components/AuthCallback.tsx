@@ -17,7 +17,8 @@ export function AuthCallback() {
       if (code) {
         // Handle OAuth or magic link
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
+        if (error || !data?.session?.user) {
+          console.error('Session error:', error);
           toast.error('Authentication failed');
           navigate('/auth');
           return;
@@ -27,10 +28,11 @@ export function AuthCallback() {
         const { data: profile } = await supabase
           .from('profiles')
           .select('subscription_status')
-          .eq('id', data.session.user.id)
+          .eq('user_id', data.session.user.id)
           .single();
           
         if (!profile || profile.subscription_status !== 'active') {
+          console.error('No active subscription:', profile);
           toast.error('No active subscription found');
           await supabase.auth.signOut();
           navigate('/auth');
@@ -56,7 +58,7 @@ export function AuthCallback() {
           });
           if (error) throw error;
           
-          navigate('/auth?type=recovery');
+          navigate('/auth');
         } else if (type === 'signup') {
           // Handle email verification
           const { error } = await supabase.auth.verifyOtp({
@@ -65,7 +67,7 @@ export function AuthCallback() {
           });
           if (error) throw error;
           
-          navigate('/auth?verified=true');
+          navigate('/auth');
         }
       } catch (error) {
         console.error('Error processing auth callback:', error);
