@@ -63,22 +63,11 @@ export function AuthCallback() {
           return;
         }
 
-        // First check if we're already logged in
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log('User already has valid session');
-          toast.success('Successfully signed in!');
-          navigate('/');
-          return;
-        }
-
-        const code = searchParams.get('code');
-        const token = searchParams.get('token') || hashParams.get('access_token');
-
         // Handle magic link code
+        const code = searchParams.get('code');
         if (code) {
           console.log('Processing magic link callback with code');
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           
           if (error) {
             console.error('Code exchange error:', error);
@@ -87,20 +76,30 @@ export function AuthCallback() {
             return;
           }
 
-          toast.success('Successfully signed in!');
-          navigate('/');
-          return;
-        }
-
-        // Handle legacy token if present
-        if (token) {
-          console.log('Processing callback with token');
-          const { error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Session error:', error);
-            toast.error('Failed to verify authentication. Please try again.');
+          if (!data.session) {
+            console.error('No session after code exchange');
+            toast.error('Failed to create session. Please try again.');
             navigate('/auth');
+            return;
+          }
+
+          // Check subscription status
+          const { data: subscription, error: subError } = await supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', data.session.user.id)
+            .maybeSingle();
+
+          if (subError) {
+            console.error('Error fetching subscription:', subError);
+            toast.error('Failed to verify subscription. Please try again.');
+            navigate('/auth');
+            return;
+          }
+
+          if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+            console.log('No active subscription, redirecting to signup');
+            navigate('/signup');
             return;
           }
 
@@ -109,7 +108,7 @@ export function AuthCallback() {
           return;
         }
 
-        // If we get here with no auth parameters, log and show error
+        // If we get here with no valid parameters, show error
         console.error('No valid authentication parameters found');
         toast.error('Invalid authentication callback. Please try again.');
         navigate('/auth');
