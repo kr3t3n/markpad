@@ -6,11 +6,13 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["stripe"]
+  directory = "./netlify/functions"
 
 [[redirects]]
   from = "/.netlify/functions/*"
   to = "/.netlify/functions/:splat"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
