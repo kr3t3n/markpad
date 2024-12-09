@@ -76,7 +76,7 @@ export function Auth() {
       }
       
       // Redirect to Stripe with the user ID as client_reference_id
-      window.location.href = `https://buy.stripe.com/test_xxx?client_reference_id=${user.id}`;
+      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?client_reference_id=${user.id}`;
     }
   };
 
