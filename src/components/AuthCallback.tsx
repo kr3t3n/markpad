@@ -11,36 +11,49 @@ export function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const token = searchParams.get('token');
-      const code = searchParams.get('code');
       const type = searchParams.get('type');
+      const sessionId = searchParams.get('session_id');
       
-      if (code) {
-        // Handle OAuth or magic link
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error || !data?.session?.user) {
-          console.error('Session error:', error);
-          toast.error('Authentication failed');
+      if (sessionId) {
+        // Handle Stripe success
+        const response = await fetch('/.netlify/functions/verify-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+
+        if (!response.ok) {
+          console.error('Session verification failed:', await response.text());
+          console.error('Session verification failed');
+          toast.error('Payment verification failed');
           navigate('/auth');
           return;
         }
-        
-        // Get user's profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('subscription_status')
-          .eq('user_id', data.session.user.id)
-          .single();
-          
-        if (!profile || profile.subscription_status !== 'active') {
-          console.error('No active subscription:', profile);
-          toast.error('No active subscription found');
-          await supabase.auth.signOut();
+
+        const { email } = await response.json();
+        if (!email) {
+          toast.error('Could not verify payment details');
           navigate('/auth');
           return;
         }
-        
-        toast.success('Successfully authenticated!');
-        navigate('/');
+
+        // Send magic link to confirmed email
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
+        });
+
+        if (error) {
+          console.error('Magic link error:', error);
+          toast.error('Failed to send login link');
+          navigate('/auth');
+          return;
+        }
+
+        toast.success('Check your email for the login link!');
+        navigate('/auth', { 
+          state: { email, message: 'Check your email for the login link!' }
+        });
         return;
       }
       

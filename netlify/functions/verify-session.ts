@@ -14,11 +14,6 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-const PRICE_IDS = {
-  monthly: process.env.STRIPE_PRICE_MONTHLY_ID || '',
-  annual: process.env.STRIPE_PRICE_ANNUAL_ID || ''
-};
-
 const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
 });
@@ -41,37 +36,27 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    const { email, successUrl, cancelUrl, interval = 'monthly' } = JSON.parse(event.body || '{}');
+    const { sessionId } = JSON.parse(event.body || '{}');
 
-    if (!email || !successUrl || !cancelUrl) {
+    if (!sessionId) {
+      console.error('Missing session ID');
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        body: JSON.stringify({ error: 'Missing session ID' })
       };
     }
 
-    const priceId = PRICE_IDS[interval as keyof typeof PRICE_IDS];
-    if (!priceId) {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    
+    if (!session || !session.customer_details?.email) {
+      console.error('Invalid session or missing email:', session);
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Price ID not configured' })
+        body: JSON.stringify({ error: 'Invalid session' })
       };
     }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      billing_address_collection: 'auto',
-      line_items: [{
-        price: priceId,
-        quantity: 1,
-      }],
-      mode: 'subscription',
-      success_url: `${SITE_URL}/auth/callback?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl,
-      customer_email: email,
-    });
 
     return {
       statusCode: 200,
@@ -79,14 +64,16 @@ const handler: Handler = async (event) => {
         ...corsHeaders,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ url: session.url })
+      body: JSON.stringify({ 
+        email: session.customer_details.email
+      })
     };
   } catch (error) {
-    console.error('Checkout error:', error);
+    console.error('Session verification error:', error);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Failed to create checkout session' })
+      body: JSON.stringify({ error: 'Failed to verify session' })
     };
   }
 };

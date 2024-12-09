@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { createCheckoutSession } from '../lib/stripe';
 import { toast } from 'sonner'; 
@@ -13,10 +13,10 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { user, signUp, checkUserExists } = useAuth();
-  const success = searchParams.get('success');
-  const stripeEmail = searchParams.get('email');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const locationState = location.state as { email?: string; message?: string } | null;
 
   useEffect(() => {
     if (timeRemaining > 0) {
@@ -28,26 +28,12 @@ export function Auth() {
   }, [timeRemaining]);
 
   useEffect(() => {
-    if (success === 'true' && stripeEmail && !magicLinkSent) {
+    if (locationState?.email && locationState?.message) {
+      setEmail(locationState.email);
       setMagicLinkSent(true);
-      handleStripeSuccess(stripeEmail);
+      toast.success(locationState.message);
     }
-  }, [success, stripeEmail, magicLinkSent]);
-
-  const handleStripeSuccess = async (customerEmail: string) => {
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      await handleMagicLink(customerEmail);
-      setEmail(customerEmail);
-    } catch (err) {
-      console.error('Stripe verification error:', err);
-      setError('Failed to verify payment. Please contact support.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [locationState]);
 
   useEffect(() => {
     const handleAuthRedirect = async () => {
@@ -106,20 +92,34 @@ export function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+
     setError('');
+    setIsLoading(true);
     
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      setIsLoading(true);
       const { url, error } = await createCheckoutSession(email);
       if (error) {
+        if (error.includes('active subscription')) {
+          setIsExistingUser(true);
+          setError('An account with this email already exists. Please sign in.');
+          setIsLoading(false);
+          return;
+        }
         setError(error);
         setIsLoading(false);
         return;
       }
       if (url) {
         window.location.href = url;
+      } else {
+        setError('Failed to initiate checkout. Please try again.');
+        setIsLoading(false);
       }
     }
   };
