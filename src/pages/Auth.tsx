@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { createCheckoutSession } from '../lib/stripe';
 import { toast } from 'sonner'; 
 import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, ShieldCheck } from 'lucide-react';
 
@@ -61,22 +60,22 @@ export function Auth() {
       const exists = await checkUserExists(emailAddress);
 
       if (!exists) {
-        // Redirect to signup with email pre-populated
-        setIsLoading(false);
+        // For new users, update state before navigation
+        console.log('New user, redirecting to signup');
         setIsExistingUser(false);
+        setIsLoading(false);
         toast.info('Get started with Markpad Premium to access all features');
-        navigate('/signup', { 
-          state: { 
-            email: emailAddress,
-            message: 'Complete your registration to access premium features'
-          }
-        });
+        
+        // Use window.location for full page navigation to signup
+        window.location.href = `/signup?email=${encodeURIComponent(emailAddress)}`;
         return;
       }
 
       // User exists and has active subscription, send sign in link
       console.log('User has active subscription, sending sign in link');
+      setIsExistingUser(true);
       const { error: signInError } = await signInWithOtp(emailAddress);
+      
       if (signInError) {
         console.error('Sign in error:', signInError);
         let errorMessage = signInError.message || 'Failed to send sign in link. Please try again.';
@@ -110,32 +109,20 @@ export function Auth() {
       return;
     }
 
-    setError('');
-    setIsLoading(true);
-    
-    if (isExistingUser) {
-      await handleMagicLink(email);
-    } else {
-      const { url, error } = await createCheckoutSession(email);
-      if (error) {
-        if (error.includes('active subscription')) {
-          setIsExistingUser(true);
-          setError('An account with this email already exists. Please sign in.');
-          setIsLoading(false);
-          return;
-        }
-        setError(error);
-        setIsLoading(false);
-        return;
-      }
-      if (url) {
-        window.location.href = url;
-      } else {
-        setError('Failed to initiate checkout. Please try again.');
-        setIsLoading(false);
-      }
-    }
+    await handleMagicLink(email);
   };
+
+  // Early return if loading
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
+          <Loader2 className="animate-spin mx-auto" size={24} />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Checking your account...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8"> 
