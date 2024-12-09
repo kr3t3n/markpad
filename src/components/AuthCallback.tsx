@@ -13,7 +13,9 @@ export function AuthCallback() {
       const token = searchParams.get('token');
       const type = searchParams.get('type');
       const sessionId = searchParams.get('session_id');
-      
+      const paymentSuccess = searchParams.get('payment_success');
+      const email = searchParams.get('email');
+
       if (sessionId) {
         // Handle Stripe success
         const response = await fetch('/.netlify/functions/verify-session', {
@@ -30,8 +32,8 @@ export function AuthCallback() {
           return;
         }
 
-        const { email } = await response.json();
-        if (!email) {
+        const { email: verifiedEmail } = await response.json();
+        if (!verifiedEmail) {
           toast.error('Could not verify payment details');
           navigate('/auth');
           return;
@@ -39,7 +41,7 @@ export function AuthCallback() {
 
         // Send magic link to confirmed email
         const { error } = await supabase.auth.signInWithOtp({
-          email,
+          email: verifiedEmail,
           options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
         });
 
@@ -52,11 +54,29 @@ export function AuthCallback() {
 
         toast.success('Check your email for the login link!');
         navigate('/auth', { 
-          state: { email, message: 'Check your email for the login link!' }
+          state: { email: verifiedEmail, message: 'Check your email for the login link!' }
         });
         return;
       }
-      
+
+      if (paymentSuccess === 'true' && email) {
+        // Send magic link after successful payment
+        const { error: signUpError } = await supabase.auth.signInWithOtp({
+          email,
+        });
+        
+        if (signUpError) throw signUpError;
+        
+        navigate('/auth', { 
+          state: { 
+            email,
+            message: 'Payment successful! Check your email for the magic link to sign in.' 
+          },
+          replace: true 
+        });
+        return;
+      }
+
       if (!token || !type) {
         navigate('/');
         return;

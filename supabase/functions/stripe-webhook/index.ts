@@ -46,7 +46,7 @@ serve(async (req) => {
             quantity: 1,
           },
         ],
-        success_url: successUrl,
+        success_url: `${successUrl}?payment_success=true&email=${encodeURIComponent(email)}`,
         cancel_url: cancelUrl,
         customer_email: email,
       });
