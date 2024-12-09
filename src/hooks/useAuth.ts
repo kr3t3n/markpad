@@ -2,9 +2,30 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
+export type SubscriptionStatus = 'trialing' | 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'unpaid';
+
+interface Subscription {
+  id: string;
+  user_id: string;
+  stripe_customer_id: string;
+  stripe_subscription_id: string;
+  status: SubscriptionStatus;
+  price_id: string;
+  quantity: number;
+  cancel_at_period_end: boolean;
+  cancel_at: string | null;
+  canceled_at: string | null;
+  current_period_start: string;
+  current_period_end: string;
+  trial_start: string | null;
+  trial_end: string | null;
+  ended_at: string | null;
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   useEffect(() => {
     // Get initial session
@@ -15,13 +36,33 @@ export function useAuth() {
 
     // Listen for auth changes
     const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        await fetchSubscription(session.user.id);
+      } else {
+        setSubscription(null);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => authSubscription.unsubscribe();
   }, []);
+
+  const fetchSubscription = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching subscription:', error);
+      return;
+    }
+
+    setSubscription(data);
+  };
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -76,92 +117,46 @@ export function useAuth() {
     }
   };
 
-  const checkUserExists = async (email: string) => {
-    try {
-      const normalizedEmail = email.toLowerCase();
-      console.log('Checking subscription status for:', normalizedEmail);
-
-      // Check profile and subscription status
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('subscription_status, subscription_end_date, email')
-        .eq('email', normalizedEmail)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Profile check error:', profileError);
-        return false;
-      }
-
-      // Case 4: No profile at all
-      if (!profile) {
-        console.log('No profile found for email:', normalizedEmail);
-        return false;
-      }
-
-      // Case 2 & 3: Has profile but inactive subscription
-      if (profile.subscription_status !== 'active') {
-        console.log('Subscription not active:', {
-          email: normalizedEmail,
-          status: profile.subscription_status
-        });
-        return false;
-      }
-
-      // Case 1: Check if subscription is active and not expired
-      const endDate = profile.subscription_end_date ? new Date(profile.subscription_end_date) : null;
-      const isExpired = endDate ? endDate < new Date() : true;
-
-      console.log('Subscription check:', {
-        email: normalizedEmail,
-        status: profile.subscription_status,
-        endDate,
-        isExpired
-      });
-
-      // Only return true if subscription is active and not expired
-      return !isExpired;
-    } catch (error) {
-      console.error('Error checking subscription status:', error);
-      return false;
-    }
-  };
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    return { error };
-  };
-
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/auth/callback'
-    });
-    return { error };
-  };
-
   const checkSubscription = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_status')
-      .eq('id', user.id)
-      .single();
+    // Fetch latest subscription status
+    await fetchSubscription(user.id);
 
-    return profile?.subscription_status === 'active';
+    if (!subscription) return false;
+
+    // Check if subscription is active or trialing
+    if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+      return false;
+    }
+
+    // Check if subscription has ended
+    if (subscription.ended_at) {
+      const endDate = new Date(subscription.ended_at);
+      if (endDate <= new Date()) {
+        return false;
+      }
+    }
+
+    // Check if subscription period has ended
+    const periodEnd = new Date(subscription.current_period_end);
+    if (periodEnd <= new Date()) {
+      return false;
+    }
+
+    return true;
   };
+
+  const signOut = () => supabase.auth.signOut();
 
   return {
     user,
     loading,
+    subscription,
     signIn,
     signUp,
-    signInWithOtp,
     signOut,
-    resetPassword,
+    signInWithOtp,
     checkSubscription,
-    checkUserExists,
-    isLoading: loading
   };
 }

@@ -11,6 +11,36 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+async function getUserIdByEmail(email: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email.toLowerCase())
+    .single();
+
+  if (error || !data) {
+    console.error('Error getting user ID:', error);
+    return null;
+  }
+
+  return data.id;
+}
+
+async function upsertSubscription(subscriptionData: any) {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .upsert(subscriptionData, { onConflict: 'stripe_subscription_id' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error upserting subscription:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 serve(async (req) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -46,7 +76,7 @@ serve(async (req) => {
             quantity: 1,
           },
         ],
-        success_url: `${successUrl}?payment_success=true&email=${encodeURIComponent(email)}`,
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: cancelUrl,
         customer_email: email,
       });
@@ -74,94 +104,84 @@ serve(async (req) => {
     }
 
     switch (event.type) {
-      case 'checkout.session.completed':
-        const checkoutSession = event.data.object as Stripe.Checkout.Session;
-        if (checkoutSession.mode === 'subscription') {
-          const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
-          const email = checkoutSession.customer_details?.email?.toLowerCase(); // Ensure email is lowercase
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === 'subscription') {
+          const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+          const email = session.customer_details?.email;
           
           if (!email) {
             console.error('No email found in checkout session');
             break;
           }
 
-          try {
-            // First check if profile exists
-            const { data: existingProfile, error: lookupError } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('email', email)
-              .single();
-
-            if (lookupError) {
-              console.error('Error looking up profile:', lookupError);
-              break;
-            }
-
-            const profileData = {
-              stripe_customer_id: checkoutSession.customer as string,
-              subscription_status: 'active',
-              subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
-              updated_at: new Date().toISOString()
-            };
-
-            if (existingProfile) {
-              // Update existing profile
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update(profileData)
-                .eq('id', existingProfile.id);
-
-              if (updateError) {
-                console.error('Error updating profile:', updateError);
-                break;
-              }
-              console.log('Successfully updated profile for:', email);
-            } else {
-              // Create new profile
-              const { error: insertError } = await supabase
-                .from('profiles')
-                .insert({
-                  ...profileData,
-                  email,
-                  created_at: new Date().toISOString()
-                });
-
-              if (insertError) {
-                console.error('Error creating profile:', insertError);
-                break;
-              }
-              console.log('Successfully created profile for:', email);
-            }
-          } catch (error) {
-            console.error('Error processing checkout session:', error);
+          const userId = await getUserIdByEmail(email);
+          if (!userId) {
+            console.error('No user found for email:', email);
+            break;
           }
+
+          await upsertSubscription({
+            user_id: userId,
+            stripe_customer_id: session.customer,
+            stripe_subscription_id: subscription.id,
+            status: subscription.status,
+            price_id: subscription.items.data[0].price.id,
+            quantity: subscription.items.data[0].quantity,
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+            canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
+            current_period_start: new Date(subscription.current_period_start * 1000),
+            current_period_end: new Date(subscription.current_period_end * 1000),
+            trial_start: subscription.trial_start ? new Date(subscription.trial_start * 1000) : null,
+            trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
+          });
         }
         break;
+      }
 
       case 'customer.subscription.updated':
-        const updatedSubscription = event.data.object as Stripe.Subscription;
-        await supabase
-          .from('profiles')
-          .update({
-            subscription_status: updatedSubscription.status === 'active' ? 'active' : 'past_due',
-            subscription_end_date: new Date(updatedSubscription.current_period_end * 1000).toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('stripe_customer_id', updatedSubscription.customer);
-        break;
-
       case 'customer.subscription.deleted':
-        const deletedSubscription = event.data.object as Stripe.Subscription;
-        await supabase
-          .from('profiles')
-          .update({
-            subscription_status: 'canceled',
-            subscription_end_date: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('stripe_customer_id', deletedSubscription.customer);
+      case 'customer.subscription.trial_will_end':
+      case 'customer.subscription.pending_update_applied':
+      case 'customer.subscription.pending_update_expired': {
+        const subscription = event.data.object as Stripe.Subscription;
+        
+        await upsertSubscription({
+          stripe_subscription_id: subscription.id,
+          status: subscription.status,
+          price_id: subscription.items.data[0].price.id,
+          quantity: subscription.items.data[0].quantity,
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000) : null,
+          canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
+          current_period_start: new Date(subscription.current_period_start * 1000),
+          current_period_end: new Date(subscription.current_period_end * 1000),
+          trial_start: subscription.trial_start ? new Date(subscription.trial_start * 1000) : null,
+          trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
+          ended_at: subscription.ended_at ? new Date(subscription.ended_at * 1000) : null,
+        });
         break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+          await upsertSubscription({
+            stripe_subscription_id: subscription.id,
+            status: 'past_due',
+          });
+        }
+        break;
+      }
+
+      case 'customer.subscription.created': {
+        const subscription = event.data.object as Stripe.Subscription;
+        // This is handled by checkout.session.completed
+        console.log('New subscription created:', subscription.id);
+        break;
+      }
 
       default:
         console.log(`Unhandled event type: ${event.type}`);

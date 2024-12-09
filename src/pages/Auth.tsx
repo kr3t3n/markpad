@@ -12,7 +12,7 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, checkUserExists, signInWithOtp } = useAuth();
+  const { user, subscription, signInWithOtp } = useAuth();
 
   // Handle countdown timer
   useEffect(() => {
@@ -27,9 +27,13 @@ export function Auth() {
   // Handle authenticated user redirect
   useEffect(() => {
     if (user) {
-      navigate('/', { replace: true });
+      if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+        navigate('/signup', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
-  }, [user, navigate]);
+  }, [user, subscription, navigate]);
 
   // Pre-fill email from URL params if present
   useEffect(() => {
@@ -52,24 +56,8 @@ export function Auth() {
     }
 
     try {
-      console.log('Checking subscription for:', emailAddress);
-      const exists = await checkUserExists(emailAddress);
-
-      if (!exists) {
-        // For new users, redirect to signup
-        console.log('New user, redirecting to signup');
-        setIsLoading(false);
-        toast.info('Get started with Markpad Premium to access all features');
-        navigate('/signup', { 
-          replace: true,
-          state: { email: emailAddress }
-        });
-        return;
-      }
-
-      // User exists and has active subscription, send sign in link
-      console.log('User has active subscription, sending sign in link');
-      setIsExistingUser(true);
+      // Send sign in link and let the auth callback handle subscription check
+      console.log('Sending sign in link to:', emailAddress);
       const { error: signInError } = await signInWithOtp(emailAddress);
       
       if (signInError) {
@@ -87,6 +75,7 @@ export function Auth() {
       } else {
         toast.success('Check your email for the secure sign in link!');
         setTimeRemaining(60); // Normal cooldown
+        setIsExistingUser(true);
         // Add email to URL params without page reload
         navigate(`/auth?email=${encodeURIComponent(emailAddress)}`, { replace: true });
       }
@@ -99,167 +88,110 @@ export function Auth() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      setError('Please enter your email address');
-      return;
-    }
-    await handleMagicLink(email);
-  };
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
-          <Loader2 className="animate-spin mx-auto" size={24} />
-          <p className="mt-4 text-gray-600 dark:text-gray-300">Checking your account...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Early return if loading
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
-          <Loader2 className="animate-spin mx-auto" size={24} />
-          <p className="mt-4 text-gray-600 dark:text-gray-300">Checking your account...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8"> 
-      <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        {!searchParams.get('email') ? (
-          <div className="space-y-6">
-            <div className="flex gap-4 border-b dark:border-gray-700">
-              <button
-                onClick={() => setIsExistingUser(false)}
-                className={`pb-2 px-1 -mb-px ${!isExistingUser ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-              >
-                New User
-              </button>
-              <button
-                onClick={() => setIsExistingUser(true)}
-                className={`pb-2 px-1 -mb-px ${isExistingUser ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}
-              >
-                Already Premium
-              </button>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Sign in to Markpad
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          Your secure gateway to better note-taking
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={(e) => {
+            e.preventDefault();
+            handleMagicLink(email);
+          }}>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email address
+              </label>
+              <div className="mt-1">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full appearance-none rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                  placeholder="you@example.com"
+                />
+              </div>
             </div>
 
-            <h1 className="text-2xl font-semibold">
-              {isExistingUser ? 'Welcome Back!' : 'Premium Access'}
-            </h1>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {!isExistingUser && (
-                <p className="text-gray-600 dark:text-gray-300">
-                  Unlock all premium features and take your markdown editing to the next level.
-                </p>
-              )}
-              
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium mb-1">
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border dark:border-gray-700 dark:bg-gray-800 p-2"
-                    placeholder={isExistingUser ? "Enter your premium account email" : "Enter your email"}
-                    required
-                  />
-                </div>
-
-                {error && (
-                  <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/50 p-4 rounded-lg">
-                    {timeRemaining > 0 ? (
-                      <Clock size={16} className="flex-shrink-0 animate-pulse" />
-                    ) : error.includes('No active premium subscription') ? (
-                      <ShieldCheck size={16} className="flex-shrink-0" />
-                    ) : (
-                      <AlertCircle size={16} className="flex-shrink-0" />
-                    )}
-                    <span>{error}</span>
-                    {error.includes('No active premium subscription') && (
-                      <button
-                        onClick={() => {
-                          setIsExistingUser(false);
-                          setError('');
-                        }}
-                        className="ml-auto text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline text-xs"
-                      >
-                        Switch to New User
-                      </button>
-                    )}
+            {error && (
+              <div className="rounded-md bg-red-50 dark:bg-red-900/50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
                   </div>
-                )}
-
-                {!isExistingUser && (<div className="space-y-2">
-                  <h2 className="text-lg font-semibold">What you'll get:</h2>
-                  <ul className="space-y-2">
-                    {[
-                      'Cloud synchronization across devices',
-                      'Multiple document management',
-                      'Secure document storage',
-                      'Real-time autosave',
-                      'Document organization',
-                      'Priority support'
-                    ].map(feature => (
-                      <li key={feature} className="flex items-center gap-2">
-                        <CheckCircle2 className="text-green-500 flex-shrink-0" size={18} />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>)}
-
-                <button
-                  type="submit"
-                  disabled={isLoading || timeRemaining > 0}
-                  className="w-full bg-blue-600 text-white rounded-lg py-3 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <Loader2 className="animate-spin" size={20} />
-                  ) : timeRemaining > 0 ? (
-                    <>
-                      <Clock size={20} className="animate-pulse" />
-                      Wait {timeRemaining}s
-                    </>
-                  ) : isExistingUser ? (
-                    <>
-                      <LogIn size={20} />
-                      Sign In
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRight size={20} />
-                      Continue to Payment
-                    </>
-                  )}
-                </button>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800 dark:text-red-200">{error}</h3>
+                  </div>
+                </div>
               </div>
-            </form>
-          </div>
-        ) : (
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold mb-4">Check Your Email</h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              We've sent a secure sign in link to <strong>{email}</strong>. Click the link in your email to continue.
-            </p>
-            {isLoading && (
-              <Loader2 className="animate-spin mx-auto" size={24} />
             )}
+
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading || timeRemaining > 0}
+                className="flex w-full justify-center items-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    Sending Link...
+                  </>
+                ) : timeRemaining > 0 ? (
+                  <>
+                    <Clock className="-ml-1 mr-2 h-4 w-4" />
+                    Wait {timeRemaining}s
+                  </>
+                ) : isExistingUser ? (
+                  <>
+                    <LogIn className="-ml-1 mr-2 h-4 w-4" />
+                    Send Sign In Link
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="-ml-1 mr-2 h-4 w-4" />
+                    Continue with Email
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white dark:bg-gray-800 px-2 text-gray-500 dark:text-gray-400">
+                  Secure Authentication
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                <ShieldCheck className="h-4 w-4 text-green-500 mr-2" />
+                <span>No password required</span>
+              </div>
+              <div className="flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                <CheckCircle2 className="h-4 w-4 text-green-500 mr-2" />
+                <span>Encrypted end-to-end</span>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
