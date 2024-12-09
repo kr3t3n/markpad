@@ -18,6 +18,7 @@ export function AuthCallback() {
         const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
         console.log('Hash params:', Object.fromEntries(hashParams.entries()));
 
+        const code = searchParams.get('code');
         const token = searchParams.get('token') || hashParams.get('access_token');
         const email = searchParams.get('email') || hashParams.get('email');
         const type = searchParams.get('type');
@@ -45,13 +46,13 @@ export function AuthCallback() {
           return;
         }
 
-        // Handle Supabase magic link
-        if (token) {
-          console.log('Processing magic link callback with token');
-          const { error } = await supabase.auth.getSession();
+        // Handle magic link code
+        if (code) {
+          console.log('Processing magic link callback with code');
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
           
           if (error) {
-            console.error('Session error:', error);
+            console.error('Code exchange error:', error);
             toast.error('Failed to verify magic link. Please try again.');
             navigate('/auth');
             return;
@@ -62,8 +63,25 @@ export function AuthCallback() {
           return;
         }
 
+        // Handle legacy token if present
+        if (token) {
+          console.log('Processing callback with token');
+          const { error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Session error:', error);
+            toast.error('Failed to verify authentication. Please try again.');
+            navigate('/auth');
+            return;
+          }
+
+          toast.success('Successfully signed in!');
+          navigate('/');
+          return;
+        }
+
         // If we get here, we don't recognize the callback type
-        console.error('Unknown callback type:', { token, email, type, paymentSuccess });
+        console.error('Unknown callback type:', { code, token, email, type, paymentSuccess });
         toast.error('Invalid authentication callback. Please try again.');
         navigate('/auth');
       } catch (error) {
