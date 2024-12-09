@@ -11,6 +11,11 @@ export function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        // Get the raw URL for debugging
+        console.log('Full URL:', window.location.href);
+        console.log('Search params:', searchParams.toString());
+        console.log('Hash:', window.location.hash);
+
         // Log all search params for debugging
         console.log('Auth callback params:', Object.fromEntries(searchParams.entries()));
 
@@ -67,7 +72,28 @@ export function AuthCallback() {
         const code = searchParams.get('code');
         if (code) {
           console.log('Processing magic link callback with code');
+          
+          // Get current session first
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          console.log('Current session:', currentSession);
+          
+          if (currentSession) {
+            console.log('Already have a session, refreshing...');
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.error('Error refreshing session:', refreshError);
+              // Continue to code exchange
+            } else if (refreshData.session) {
+              console.log('Session refreshed successfully');
+              navigate('/', { replace: true });
+              return;
+            }
+          }
+          
+          // Exchange code for session
+          console.log('Exchanging code for session...');
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          console.log('Exchange result:', { data, error });
           
           if (error) {
             console.error('Code exchange error:', error);
@@ -83,12 +109,17 @@ export function AuthCallback() {
             return;
           }
 
+          console.log('Got session, user ID:', data.session.user.id);
+
           // Check subscription status
+          console.log('Checking subscription...');
           const { data: subscription, error: subError } = await supabase
             .from('subscriptions')
             .select('*')
             .eq('user_id', data.session.user.id)
             .maybeSingle();
+
+          console.log('Subscription check result:', { subscription, error: subError });
 
           if (subError) {
             console.error('Error fetching subscription:', subError);
@@ -97,14 +128,26 @@ export function AuthCallback() {
             return;
           }
 
-          if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-            console.log('No active subscription, redirecting to signup');
-            navigate('/signup');
+          // Double check session is still valid
+          const { data: { session: finalSession } } = await supabase.auth.getSession();
+          console.log('Final session check:', finalSession);
+
+          if (!finalSession) {
+            console.error('Lost session after subscription check');
+            toast.error('Session expired. Please try signing in again.');
+            navigate('/auth');
             return;
           }
 
+          if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+            console.log('No active subscription, redirecting to signup');
+            navigate('/signup', { replace: true });
+            return;
+          }
+
+          console.log('All checks passed, redirecting to home');
           toast.success('Successfully signed in!');
-          navigate('/');
+          navigate('/', { replace: true });
           return;
         }
 

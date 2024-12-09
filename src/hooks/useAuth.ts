@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
 
 export type SubscriptionStatus = 'trialing' | 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'unpaid';
@@ -23,6 +25,7 @@ interface Subscription {
 }
 
 export function useAuth() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -31,6 +34,9 @@ export function useAuth() {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchSubscription(session.user.id);
+      }
       setLoading(false);
     });
 
@@ -38,6 +44,7 @@ export function useAuth() {
     const {
       data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('Auth state changed:', { event: _event, session });
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchSubscription(session.user.id);
@@ -50,6 +57,7 @@ export function useAuth() {
   }, []);
 
   const fetchSubscription = async (userId: string) => {
+    console.log('Fetching subscription for user:', userId);
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
@@ -61,6 +69,7 @@ export function useAuth() {
       return;
     }
 
+    console.log('Subscription data:', data);
     setSubscription(data);
   };
 
@@ -147,7 +156,21 @@ export function useAuth() {
     return true;
   };
 
-  const signOut = () => supabase.auth.signOut();
+  const signOut = async () => {
+    try {
+      console.log('Signing out...');
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      console.log('Successfully signed out');
+      setUser(null);
+      setSubscription(null);
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out. Please try again.');
+    }
+  };
 
   return {
     user,
