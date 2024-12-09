@@ -15,7 +15,7 @@ export function Auth() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const { user, signUp, checkUserExists } = useAuth();
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [showMagicLinkMessage, setShowMagicLinkMessage] = useState(false);
   const locationState = location.state as { email?: string; message?: string } | null;
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function Auth() {
   useEffect(() => {
     if (locationState?.email && locationState?.message) {
       setEmail(locationState.email);
-      setMagicLinkSent(true);
+      setShowMagicLinkMessage(true);
       toast.success(locationState.message);
     }
   }, [locationState]);
@@ -49,7 +49,7 @@ export function Auth() {
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
     setError('');
-    setMagicLinkSent(false);
+    setShowMagicLinkMessage(false);
     
     if (timeRemaining > 0) {
       setError('Please wait before requesting another link.');
@@ -80,7 +80,7 @@ export function Auth() {
       }
         
       toast.success('Check your email for the magic link!');
-      setMagicLinkSent(true);
+      setShowMagicLinkMessage(true);
     } catch (err) {
       console.error('Magic link error:', err);
       setError('Failed to send magic link. Please try again.');

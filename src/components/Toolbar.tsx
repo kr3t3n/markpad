@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Bold, Italic, Underline, Code, Link, Heading1, Heading2, Heading3,
   Strikethrough, List, ListOrdered, ArrowUpRight, ArrowDownRight,

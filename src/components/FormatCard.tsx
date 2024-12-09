@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Toolbar } from './Toolbar';

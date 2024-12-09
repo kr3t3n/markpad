@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, FileCode, FileText, FileType, File } from 'lucide-react';
 import { clsx } from 'clsx';
 import { exportToMarkdown, exportToPlainText, exportToDocx, exportToOdt } from '../utils/export';

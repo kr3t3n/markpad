@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Editor } from './components/Editor';
 import { Footer } from './components/Footer';
@@ -17,8 +16,7 @@ export default function App() {
       <Toaster 
         richColors 
         position="bottom-right" 
-        closeButton
-        dismissible
+        closeButton={true}
       />
       <Header />
       <Routes>
