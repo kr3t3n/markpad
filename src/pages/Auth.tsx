@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, Mail } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -26,8 +26,17 @@ export function Auth() {
   useEffect(() => {
     const email = searchParams.get('email');
     if (email) {
-      setEmail(email);
-      handleMagicLink(email);
+      const lastAttemptTime = localStorage.getItem('lastAuthAttempt');
+      const now = Date.now();
+      
+      if (lastAttemptTime && now - parseInt(lastAttemptTime) < 60000) {
+        const remaining = Math.ceil((60000 - (now - parseInt(lastAttemptTime))) / 1000);
+        setTimeRemaining(remaining);
+        setError(`Please wait ${remaining} seconds before requesting another link.`);
+      } else {
+        setEmail(email);
+        handleMagicLink(email);
+      }
     }
   }, [searchParams]);
 
@@ -45,6 +54,12 @@ export function Auth() {
 
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
+    setError('');
+    
+    const now = Date.now();
+    localStorage.setItem('lastAuthAttempt', now.toString());
+    setLastAttempt(now);
+    
     const { error } = await supabase.auth.signInWithOtp({
       email: emailAddress,
       options: {
@@ -54,7 +69,13 @@ export function Auth() {
     setIsLoading(false);
     
     if (error) {
-      setError(error.message);
+      if (error.message.toLowerCase().includes('rate limit')) {
+        setTimeRemaining(60);
+        setError('Too many attempts. Please wait 60 seconds before trying again.');
+      } else {
+        setError(error.message);
+        localStorage.removeItem('lastAuthAttempt');
+      }
       return;
     }
     
@@ -64,12 +85,13 @@ export function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if enough time has passed since last attempt (60 seconds)
+    const lastAttemptTime = localStorage.getItem('lastAuthAttempt');
     const now = Date.now();
-    if (now - lastAttempt < 60000) {
-      const remaining = Math.ceil((60000 - (now - lastAttempt)) / 1000);
+    
+    if (lastAttemptTime && now - parseInt(lastAttemptTime) < 60000) {
+      const remaining = Math.ceil((60000 - (now - parseInt(lastAttemptTime))) / 1000);
       setTimeRemaining(remaining);
-      setError(`Rate limit exceeded. Please wait ${remaining} seconds before trying again.`);
+      setError(`Please wait ${remaining} seconds before trying again.`);
       return;
     }
     
@@ -77,6 +99,7 @@ export function Auth() {
     setError('');
     
     if (isExistingUser) {
+      localStorage.setItem('lastAuthAttempt', now.toString());
       await handleMagicLink(email);
     } else {
       setIsLoading(true);
@@ -96,6 +119,7 @@ export function Auth() {
           if (signUpError.message.toLowerCase().includes('rate limit')) {
             setTimeRemaining(60);
             setError('Too many attempts. Please wait 60 seconds before trying again.');
+            localStorage.setItem('lastAuthAttempt', now.toString());
           } else {
             setError(signUpError.message);
           }
@@ -226,7 +250,7 @@ export function Auth() {
           <div className="text-center">
             <h1 className="text-2xl font-semibold mb-4">Check Your Email</h1>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
-              We've sent you a magic link to sign in. Click the link in your email to continue.
+              We've sent a magic link to <strong>{email}</strong>. Click the link in your email to continue.
             </p>
             {isLoading && (
               <Loader2 className="animate-spin mx-auto" size={24} />
