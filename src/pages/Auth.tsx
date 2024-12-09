@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, ShieldCheck } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -14,6 +14,7 @@ export function Auth() {
   const [searchParams] = useSearchParams();
   const success = searchParams.get('success');
   const stripeEmail = searchParams.get('email');
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   useEffect(() => {
     if (timeRemaining > 0) {
@@ -25,18 +26,19 @@ export function Auth() {
   }, [timeRemaining]);
 
   useEffect(() => {
-    if (success === 'true' && stripeEmail) {
+    if (success === 'true' && stripeEmail && !magicLinkSent) {
+      setMagicLinkSent(true);
       handleStripeSuccess(stripeEmail);
     }
-  }, [success, stripeEmail]);
+  }, [success, stripeEmail, magicLinkSent]);
 
   const handleStripeSuccess = async (customerEmail: string) => {
     setIsLoading(true);
     setError('');
     
     try {
-      setEmail(customerEmail);
       await handleMagicLink(customerEmail);
+      setEmail(customerEmail);
     } catch (err) {
       console.error('Stripe verification error:', err);
       setError('Failed to verify payment. Please contact support.');
@@ -61,7 +63,26 @@ export function Auth() {
     setIsLoading(true);
     setError('');
     
-    const redirectTo = `https://markpad.online/auth/callback`;
+    if (isExistingUser) {
+      // Check if user exists and has active subscription
+      const { data: { users }, error: lookupError } = await supabase.auth.admin.listUsers({
+        filter: `email.eq.${emailAddress}`
+      });
+      
+      if (lookupError) {
+        setError('Failed to verify user status. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!users || users.length === 0 || users[0].user_metadata?.subscription_status !== 'active') {
+        setError('No active premium subscription found for this email. Please sign up as a new user.');
+        setIsLoading(false);
+        return;
+      }
+    }
+    
+    const redirectTo = `${window.location.origin}/auth/callback`;
     
     const { error } = await supabase.auth.signInWithOtp({
       email: emailAddress,
@@ -95,8 +116,8 @@ export function Auth() {
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      const successUrl = encodeURIComponent(`${window.location.origin}/auth?success=true&email=${encodeURIComponent(email)}`);
-      const cancelUrl = encodeURIComponent(`${window.location.origin}/auth?success=false`);
+      const successUrl = `${window.location.origin}/auth?success=true&email=${encodeURIComponent(email)}`;
+      const cancelUrl = `${window.location.origin}/auth?success=false`;
       window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${successUrl}&cancel_url=${cancelUrl}`;
     }
   };
@@ -152,10 +173,23 @@ export function Auth() {
                   <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/50 p-4 rounded-lg">
                     {timeRemaining > 0 ? (
                       <Clock size={16} className="flex-shrink-0 animate-pulse" />
+                    ) : error.includes('No active premium subscription') ? (
+                      <ShieldCheck size={16} className="flex-shrink-0" />
                     ) : (
                       <AlertCircle size={16} className="flex-shrink-0" />
                     )}
                     <span>{error}</span>
+                    {error.includes('No active premium subscription') && (
+                      <button
+                        onClick={() => {
+                          setIsExistingUser(false);
+                          setError('');
+                        }}
+                        className="ml-auto text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline text-xs"
+                      >
+                        Switch to New User
+                      </button>
+                    )}
                   </div>
                 )}
 
