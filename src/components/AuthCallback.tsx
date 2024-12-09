@@ -11,15 +11,29 @@ export function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const token = searchParams.get('token');
-      const type = searchParams.get('type');
       const code = searchParams.get('code');
+      const type = searchParams.get('type');
       
       if (code) {
         // Handle OAuth or magic link
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           toast.error('Authentication failed');
-          navigate('/auth?error=true');
+          navigate('/auth');
+          return;
+        }
+        
+        // Get user's profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('subscription_status')
+          .eq('id', data.session.user.id)
+          .single();
+          
+        if (!profile || profile.subscription_status !== 'active') {
+          toast.error('No active subscription found');
+          await supabase.auth.signOut();
+          navigate('/auth');
           return;
         }
         

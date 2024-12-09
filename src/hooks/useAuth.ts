@@ -34,12 +34,20 @@ export function useAuth() {
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
       email,
-      password,
+      password: password || Math.random().toString(36).slice(-12),
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`
       }
     });
     return { error };
+  };
+
+  const checkUserExists = async (email: string) => {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false }
+    });
+    return !error || error.message.includes('Email rate limit exceeded');
   };
 
   const signOut = async () => {
@@ -75,6 +83,7 @@ export function useAuth() {
     signOut,
     resetPassword,
     checkSubscription,
+    checkUserExists,
     isLoading: loading
   };
 }

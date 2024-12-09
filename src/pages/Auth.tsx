@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { toast } from 'sonner';
+import { useAuth } from '../hooks/useAuth';
+import { toast } from 'sonner'; 
 import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, ShieldCheck } from 'lucide-react';
 
 export function Auth() {
@@ -12,6 +12,7 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user, signUp, checkUserExists } = useAuth();
   const success = searchParams.get('success');
   const stripeEmail = searchParams.get('email');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -49,63 +50,53 @@ export function Auth() {
 
   useEffect(() => {
     const handleAuthRedirect = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      if (user) {
         toast.success('Successfully authenticated!');
         navigate('/', { replace: true });
       }
     }
 
     handleAuthRedirect();
-  }, [navigate, searchParams]);
+  }, [navigate, user]);
 
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
     setError('');
     
-    if (isExistingUser) {
-      // Check if user exists and has active subscription
-      const { data: { users }, error: lookupError } = await supabase.auth.admin.listUsers({
-        filter: `email.eq.${emailAddress}`
-      });
-      
-      if (lookupError) {
-        setError('Failed to verify user status. Please try again.');
-        setIsLoading(false);
-        return;
-      }
-      
-      if (!users || users.length === 0 || users[0].user_metadata?.subscription_status !== 'active') {
-        setError('No active premium subscription found for this email. Please sign up as a new user.');
-        setIsLoading(false);
-        return;
-      }
-    }
+    try {
+      if (isExistingUser) {
+        const exists = await checkUserExists(emailAddress);
     
-    const redirectTo = `${window.location.origin}/auth/callback`;
-    
-    const { error } = await supabase.auth.signInWithOtp({
-      email: emailAddress,
-      options: {
-        emailRedirectTo: redirectTo,
-        data: {
-          email: emailAddress
+        if (!exists) {
+          setError('No premium account found with this email.');
+          return;
+        }
+      } else {
+        // For new users going through Stripe
+        const exists = await checkUserExists(emailAddress);
+        if (!exists) {
+          return;
         }
       }
-    });
-    setIsLoading(false);
-    
-    if (error) {
-      if (error.message.toLowerCase().includes('rate limit')) {
-        setTimeRemaining(60);
-        setError('Please wait a minute before requesting another link.');
-      } else {
-        setError(error.message);
+
+      // Send magic link
+      const { error } = await signUp(emailAddress, '');
+      if (error) {
+        if (error.message.toLowerCase().includes('rate limit')) {
+          setTimeRemaining(60);
+          setError('Please wait a minute before requesting another link.');
+        } else {
+          setError(error.message);
+        }
+        return;
       }
-      return;
+        
+      toast.success('Check your email for the magic link!');
+    } catch (err) {
+      setError('Failed to send magic link. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
-    
-    toast.success('Check your email for the magic link!');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
