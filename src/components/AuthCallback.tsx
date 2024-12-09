@@ -73,81 +73,68 @@ export function AuthCallback() {
         if (code) {
           console.log('Processing magic link callback with code');
           
-          // Get current session first
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          console.log('Current session:', currentSession);
-          
-          if (currentSession) {
-            console.log('Already have a session, refreshing...');
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError) {
-              console.error('Error refreshing session:', refreshError);
-              // Continue to code exchange
-            } else if (refreshData.session) {
-              console.log('Session refreshed successfully');
-              navigate('/', { replace: true });
+          try {
+            // Exchange code for session
+            console.log('Exchanging code for session...');
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            console.log('Exchange result:', { data, error });
+            
+            if (error) {
+              console.error('Code exchange error:', error);
+              toast.error('Failed to verify magic link. Please try again.');
+              navigate('/auth');
               return;
             }
-          }
-          
-          // Exchange code for session
-          console.log('Exchanging code for session...');
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-          console.log('Exchange result:', { data, error });
-          
-          if (error) {
-            console.error('Code exchange error:', error);
-            toast.error('Failed to verify magic link. Please try again.');
+
+            if (!data.session) {
+              console.error('No session after code exchange');
+              toast.error('Failed to create session. Please try again.');
+              navigate('/auth');
+              return;
+            }
+
+            console.log('Got session, user ID:', data.session.user.id);
+
+            // Set the session immediately
+            const { error: setSessionError } = await supabase.auth.setSession(data.session);
+            if (setSessionError) {
+              console.error('Error setting session:', setSessionError);
+              toast.error('Failed to set session. Please try again.');
+              navigate('/auth');
+              return;
+            }
+
+            // Check subscription status
+            console.log('Checking subscription...');
+            const { data: subscription, error: subError } = await supabase
+              .from('subscriptions')
+              .select('*')
+              .eq('user_id', data.session.user.id)
+              .maybeSingle();
+
+            console.log('Subscription check result:', { subscription, error: subError });
+
+            if (subError) {
+              console.error('Error fetching subscription:', subError);
+              // Don't fail on subscription error, just redirect to signup
+              navigate('/signup', { replace: true });
+              return;
+            }
+
+            if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+              console.log('No active subscription, redirecting to signup');
+              navigate('/signup', { replace: true });
+              return;
+            }
+
+            console.log('All checks passed, redirecting to home');
+            toast.success('Successfully signed in!');
+            navigate('/', { replace: true });
+          } catch (error) {
+            console.error('Unexpected error in auth callback:', error);
+            toast.error('An unexpected error occurred. Please try again.');
             navigate('/auth');
-            return;
           }
-
-          if (!data.session) {
-            console.error('No session after code exchange');
-            toast.error('Failed to create session. Please try again.');
-            navigate('/auth');
-            return;
-          }
-
-          console.log('Got session, user ID:', data.session.user.id);
-
-          // Check subscription status
-          console.log('Checking subscription...');
-          const { data: subscription, error: subError } = await supabase
-            .from('subscriptions')
-            .select('*')
-            .eq('user_id', data.session.user.id)
-            .maybeSingle();
-
-          console.log('Subscription check result:', { subscription, error: subError });
-
-          if (subError) {
-            console.error('Error fetching subscription:', subError);
-            toast.error('Failed to verify subscription. Please try again.');
-            navigate('/auth');
-            return;
-          }
-
-          // Double check session is still valid
-          const { data: { session: finalSession } } = await supabase.auth.getSession();
-          console.log('Final session check:', finalSession);
-
-          if (!finalSession) {
-            console.error('Lost session after subscription check');
-            toast.error('Session expired. Please try signing in again.');
-            navigate('/auth');
-            return;
-          }
-
-          if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-            console.log('No active subscription, redirecting to signup');
-            navigate('/signup', { replace: true });
-            return;
-          }
-
-          console.log('All checks passed, redirecting to home');
-          toast.success('Successfully signed in!');
-          navigate('/', { replace: true });
           return;
         }
 

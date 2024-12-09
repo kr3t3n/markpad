@@ -27,13 +27,15 @@ export function Auth() {
   // Handle authenticated user redirect
   useEffect(() => {
     if (user) {
-      if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+      const redirectTo = searchParams.get('redirectTo') || '/';
+      if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) {
+        navigate(redirectTo, { replace: true });
+      } else if (redirectTo !== '/signup') {
+        // Only redirect to signup if we're not already there
         navigate('/signup', { replace: true });
-      } else {
-        navigate('/', { replace: true });
       }
     }
-  }, [user, subscription, navigate]);
+  }, [user, subscription, navigate, searchParams]);
 
   // Pre-fill email from URL params if present
   useEffect(() => {
