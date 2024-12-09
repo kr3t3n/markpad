@@ -4,7 +4,7 @@ import { LogIn, LogOut, FileText, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 export function Header() {
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -48,7 +48,7 @@ export function Header() {
           >
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          {user && (
+          {!loading && user && (
             <Link
               to="/documents"
               className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
@@ -57,22 +57,24 @@ export function Header() {
               My Documents
             </Link>
           )}
-          <button
-            onClick={handleAuth}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors sm:px-4 sm:py-2 p-2"
-          >
-            {user ? (
-              <>
-                <LogOut size={18} />
-                <span className="hidden sm:inline">Sign Out</span>
-              </>
-            ) : (
-              <>
-                <LogIn size={18} />
-                <span className="hidden sm:inline">Sign In</span>
-              </>
-            )}
-          </button>
+          {!loading && (
+            <button
+              onClick={handleAuth}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors sm:px-4 sm:py-2 p-2"
+            >
+              {user ? (
+                <>
+                  <LogOut size={18} />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={18} />
+                  <span className="hidden sm:inline">Sign In</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
