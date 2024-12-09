@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, Mail } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
@@ -12,7 +12,8 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get('session_id');
+  const success = searchParams.get('success');
+  const stripeEmail = searchParams.get('email');
 
   useEffect(() => {
     if (timeRemaining > 0) {
@@ -24,34 +25,18 @@ export function Auth() {
   }, [timeRemaining]);
 
   useEffect(() => {
-    if (sessionId) {
-      handleStripeSuccess();
+    if (success === 'true' && stripeEmail) {
+      handleStripeSuccess(stripeEmail);
     }
-  }, [sessionId]);
+  }, [success, stripeEmail]);
 
-  const handleStripeSuccess = async () => {
+  const handleStripeSuccess = async (customerEmail: string) => {
     setIsLoading(true);
     setError('');
     
     try {
-      // Get session from Stripe
-      const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to verify payment');
-      }
-      
-      const session = await response.json();
-      const customerEmail = session.customer_details?.email;
-      
-      if (customerEmail) {
-        setEmail(customerEmail);
-        await handleMagicLink(customerEmail);
-      }
+      setEmail(customerEmail);
+      await handleMagicLink(customerEmail);
     } catch (err) {
       console.error('Stripe verification error:', err);
       setError('Failed to verify payment. Please contact support.');
@@ -110,16 +95,9 @@ export function Auth() {
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      setIsLoading(true);
-      try {
-        // Redirect to Stripe with prefilled email
-        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent('https://markpad.online/auth')}`;
-      } catch (err) {
-        console.error('Signup error:', err);
-        setError('An unexpected error occurred. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
+      const successUrl = encodeURIComponent(`${window.location.origin}/auth?success=true&email=${encodeURIComponent(email)}`);
+      const cancelUrl = encodeURIComponent(`${window.location.origin}/auth?success=false`);
+      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${successUrl}&cancel_url=${cancelUrl}`;
     }
   };
 
