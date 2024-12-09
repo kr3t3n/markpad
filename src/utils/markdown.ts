@@ -1,20 +1,13 @@
 import { marked } from 'marked';
 
-// Configure marked to properly escape code blocks
-marked.setOptions({
-  highlight: (code) => {
-    return `<pre><code>${escapeHtml(code)}</code></pre>`;
-  }
-});
-
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-export const parseMarkdown = (text: string): string => {
-  return marked(text, { breaks: true });
+export const parseMarkdown = async (text: string): Promise<string> => {
+  return marked(text, { breaks: true, async: true });
 };
 
 export type TextTransform = 'sentence' | 'lower' | 'upper' | 'camel' | 'camelTrim';

@@ -1,4 +1,5 @@
-import { TextRun, Paragraph, HeadingLevel, AlignmentType } from 'docx';
+import { TextRun } from 'docx';
+import type { HeadingLevel } from 'docx';
 
 interface FormattedBlock {
   type: 'paragraph' | 'heading' | 'code' | 'list';
@@ -106,14 +107,14 @@ export function formatTextContent(text: string): TextRun[] {
   return runs;
 }
 
-export function getHeadingLevel(level: number): HeadingLevel {
+export function getHeadingLevel(level: number): typeof HeadingLevel[keyof typeof HeadingLevel] {
   switch (level) {
-    case 1: return HeadingLevel.HEADING_1;
-    case 2: return HeadingLevel.HEADING_2;
-    case 3: return HeadingLevel.HEADING_3;
-    case 4: return HeadingLevel.HEADING_4;
-    case 5: return HeadingLevel.HEADING_5;
-    default: return HeadingLevel.HEADING_6;
+    case 1: return 'HEADING1';
+    case 2: return 'HEADING2';
+    case 3: return 'HEADING3';
+    case 4: return 'HEADING4';
+    case 5: return 'HEADING5';
+    default: return 'HEADING6';
   }
 }
 

@@ -65,9 +65,9 @@ export function AuthCallback() {
       try {
         if (type === 'recovery') {
           // Handle password reset
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: 'recovery'
+          const { error } = await supabase.auth.verifyOtp({ 
+            token,
+            type: 'recovery',
           });
           if (error) throw error;
           
@@ -75,7 +75,7 @@ export function AuthCallback() {
         } else if (type === 'signup') {
           // Handle email verification
           const { error } = await supabase.auth.verifyOtp({
-            token_hash: token,
+            token,
             type: 'signup',
           });
           if (error) throw error;

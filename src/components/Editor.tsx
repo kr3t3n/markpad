@@ -73,7 +73,7 @@ export function Editor() {
     if (data) {
       setTitle(data.title);
       setContent(data.content);
-      setPreview(parseMarkdown(data.content));
+      parseMarkdown(data.content).then(setPreview);
     }
   };
 
@@ -81,7 +81,7 @@ export function Editor() {
     if (!id) {
       Cookies.set(STORAGE_KEY, content, { expires: 365 });
     }
-    setPreview(parseMarkdown(content));
+    parseMarkdown(content).then(setPreview);
   }, [content]);
 
   useEffect(() => {
