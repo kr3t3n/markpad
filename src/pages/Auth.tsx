@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { LogIn, Mail, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export function Auth() {
   const [email, setEmail] = useState('');
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [lastAttempt, setLastAttempt] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -53,20 +54,33 @@ export function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check if enough time has passed since last attempt (30 seconds)
+    const now = Date.now();
+    if (now - lastAttempt < 30000) {
+      setError('Please wait 30 seconds before trying again');
+      return;
+    }
+    
+    setLastAttempt(now);
+    setError('');
+    
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
       // First create a temporary user and get their ID
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email,
-        password: crypto.randomUUID(), // Random password since we'll use magic links
+        password: `${crypto.randomUUID()}${crypto.randomUUID()}`, // Longer random password
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`
         }
       });
       
       if (signUpError) {
-        setError(signUpError.message);
+        const message = signUpError.message.toLowerCase().includes('rate limit')
+          ? 'Too many attempts. Please try again in 30 seconds.'
+          : signUpError.message;
+        setError(message);
         return;
       }
       
@@ -128,7 +142,10 @@ export function Auth() {
                 </div>
 
                 {error && (
-                  <div className="text-red-500 text-sm">{error}</div>
+                  <div className="flex items-center gap-2 text-red-500 text-sm bg-red-50 dark:bg-red-950/50 p-3 rounded-lg">
+                    <AlertCircle size={16} className="flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
                 )}
 
                 {!isExistingUser && (<div className="space-y-2">
