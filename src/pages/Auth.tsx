@@ -13,8 +13,8 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const { user, checkUserExists, signInWithOtp } = useAuth();
+  const location = useLocation();
   const locationState = location.state as { email?: string; message?: string } | null;
 
   useEffect(() => {
@@ -55,35 +55,38 @@ export function Auth() {
     }
 
     try {
+      console.log('Checking subscription for:', emailAddress);
       const exists = await checkUserExists(emailAddress);
       setIsExistingUser(exists);
 
-      if (!exists) {
-        // If user doesn't exist or doesn't have active subscription, redirect to checkout
-        const { url, error: stripeError } = await createCheckoutSession(emailAddress);
-        if (stripeError) {
-          console.error('Stripe checkout error:', stripeError);
-          toast.error('Failed to create checkout session. Please try again.');
-          setIsLoading(false);
-          return;
+      if (exists) {
+        // User exists and has active subscription, send magic link
+        console.log('User exists with active subscription, sending magic link');
+        const { error: signInError } = await signInWithOtp(emailAddress);
+        if (signInError) {
+          console.error('Sign in error:', signInError);
+          toast.error('Failed to send magic link. Please try again.');
+          setError(typeof signInError === 'object' && signInError !== null ? 
+            (signInError as { message?: string })?.message || 'Failed to send magic link' : 
+            'Failed to send magic link');
+        } else {
+          toast.success('Check your email for the magic link!');
+          setTimeRemaining(60); // Set cooldown timer
         }
-        if (url) {
-          window.location.href = url;
-          return;
-        }
+        return;
       }
 
-      // User exists and has active subscription, send magic link
-      const { error: signInError } = await signInWithOtp(emailAddress);
-      if (signInError) {
-        console.error('Sign in error:', signInError);
-        toast.error('Failed to send magic link. Please try again.');
-        setError(typeof signInError === 'object' && signInError !== null ? 
-          (signInError as { message?: string })?.message || 'Failed to send magic link' : 
-          'Failed to send magic link');
-      } else {
-        toast.success('Check your email for the magic link!');
-        setTimeRemaining(60); // Set cooldown timer
+      // If user doesn't exist or doesn't have active subscription, redirect to checkout
+      console.log('User needs subscription, redirecting to checkout');
+      const { url, error: stripeError } = await createCheckoutSession(emailAddress);
+      if (stripeError) {
+        console.error('Stripe checkout error:', stripeError);
+        toast.error('Failed to create checkout session. Please try again.');
+        return;
+      }
+      if (url) {
+        window.location.href = url;
+        return;
       }
     } catch (error) {
       console.error('Authentication error:', error);
