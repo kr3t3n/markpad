@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner'; 
 import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, ShieldCheck } from 'lucide-react';
@@ -13,9 +13,8 @@ export function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, checkUserExists, signInWithOtp } = useAuth();
-  const location = useLocation();
-  const locationState = location.state as { email?: string; message?: string } | null;
 
+  // Handle countdown timer
   useEffect(() => {
     if (timeRemaining > 0) {
       const timer = setInterval(() => {
@@ -25,23 +24,20 @@ export function Auth() {
     }
   }, [timeRemaining]);
 
+  // Handle authenticated user redirect
   useEffect(() => {
-    if (locationState?.email && locationState?.message) {
-      setEmail(locationState.email);
-      toast.success(locationState.message);
+    if (user) {
+      navigate('/', { replace: true });
     }
-  }, [locationState]);
+  }, [user, navigate]);
 
+  // Pre-fill email from URL params if present
   useEffect(() => {
-    const handleAuthRedirect = async () => {
-      if (user) {
-        toast.success('Successfully authenticated!');
-        navigate('/', { replace: true });
-      }
+    const emailParam = searchParams.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
     }
-
-    handleAuthRedirect();
-  }, [navigate, user]);
+  }, [searchParams]);
 
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
@@ -60,14 +56,14 @@ export function Auth() {
       const exists = await checkUserExists(emailAddress);
 
       if (!exists) {
-        // For new users, update state before navigation
+        // For new users, redirect to signup
         console.log('New user, redirecting to signup');
-        setIsExistingUser(false);
         setIsLoading(false);
         toast.info('Get started with Markpad Premium to access all features');
-        
-        // Use window.location for full page navigation to signup
-        window.location.href = `/signup?email=${encodeURIComponent(emailAddress)}`;
+        navigate('/signup', { 
+          replace: true,
+          state: { email: emailAddress }
+        });
         return;
       }
 
@@ -91,6 +87,8 @@ export function Auth() {
       } else {
         toast.success('Check your email for the secure sign in link!');
         setTimeRemaining(60); // Normal cooldown
+        // Add email to URL params without page reload
+        navigate(`/auth?email=${encodeURIComponent(emailAddress)}`, { replace: true });
       }
     } catch (error) {
       console.error('Authentication error:', error);
@@ -103,14 +101,24 @@ export function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!email) {
       setError('Please enter your email address');
       return;
     }
-
     await handleMagicLink(email);
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
+          <Loader2 className="animate-spin mx-auto" size={24} />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Checking your account...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Early return if loading
   if (isLoading) {
