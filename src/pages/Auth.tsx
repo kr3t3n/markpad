@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { LogIn, Mail, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
@@ -14,10 +13,10 @@ export function Auth() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const stripeEmail = searchParams.get('email');
-    if (stripeEmail) {
-      setEmail(stripeEmail);
-      handleMagicLink(stripeEmail);
+    const email = searchParams.get('email');
+    if (email) {
+      setEmail(email);
+      handleMagicLink(email);
     }
   }, [searchParams]);
 
@@ -57,7 +56,27 @@ export function Auth() {
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}`;
+      // First create a temporary user and get their ID
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: crypto.randomUUID(), // Random password since we'll use magic links
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
+      }
+      
+      if (!user?.id) {
+        setError('Failed to create account');
+        return;
+      }
+      
+      // Redirect to Stripe with the user ID as client_reference_id
+      window.location.href = `https://buy.stripe.com/test_xxx?client_reference_id=${user.id}`;
     }
   };
 
