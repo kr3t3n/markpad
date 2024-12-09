@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { createCheckoutSession } from '../lib/stripe';
 import { toast } from 'sonner'; 
 import { LogIn, AlertCircle, Loader2, CheckCircle2, ArrowRight, Clock, ShieldCheck } from 'lucide-react';
 
@@ -110,9 +111,16 @@ export function Auth() {
     if (isExistingUser) {
       await handleMagicLink(email);
     } else {
-      const successUrl = `${window.location.origin}/auth?success=true&email=${encodeURIComponent(email)}`;
-      const cancelUrl = `${window.location.origin}/auth?success=false`;
-      window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent(successUrl)}&cancel_url=${encodeURIComponent(cancelUrl)}`;
+      setIsLoading(true);
+      const { url, error } = await createCheckoutSession(email);
+      if (error) {
+        setError(error);
+        setIsLoading(false);
+        return;
+      }
+      if (url) {
+        window.location.href = url;
+      }
     }
   };
 
