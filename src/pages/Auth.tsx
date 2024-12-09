@@ -12,6 +12,7 @@ export function Auth() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
     if (timeRemaining > 0) {
@@ -23,12 +24,41 @@ export function Auth() {
   }, [timeRemaining]);
 
   useEffect(() => {
-    const email = searchParams.get('email');
-    if (email) {
-      setEmail(email);
-      handleMagicLink(email);
+    if (sessionId) {
+      handleStripeSuccess();
     }
-  }, [searchParams]);
+  }, [sessionId]);
+
+  const handleStripeSuccess = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      // Get session from Stripe
+      const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify payment');
+      }
+      
+      const session = await response.json();
+      const customerEmail = session.customer_details?.email;
+      
+      if (customerEmail) {
+        setEmail(customerEmail);
+        await handleMagicLink(customerEmail);
+      }
+    } catch (err) {
+      console.error('Stripe verification error:', err);
+      setError('Failed to verify payment. Please contact support.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handleAuthRedirect = async () => {
@@ -45,11 +75,13 @@ export function Auth() {
   const handleMagicLink = async (emailAddress: string) => {
     setIsLoading(true);
     setError('');
-        
+    
+    const redirectTo = `https://markpad.online/auth/callback`;
+    
     const { error } = await supabase.auth.signInWithOtp({
       email: emailAddress,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: redirectTo,
         data: {
           email: emailAddress
         }
@@ -81,8 +113,7 @@ export function Auth() {
       setIsLoading(true);
       try {
         // Redirect to Stripe with prefilled email
-        const successUrl = `${window.location.origin}/auth?email=${encodeURIComponent(email)}`;
-        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent(successUrl)}`;
+        window.location.href = `https://buy.stripe.com/test_aEUdTPbkE7AueMEbII?prefilled_email=${encodeURIComponent(email)}&success_url=${encodeURIComponent('https://markpad.online/auth')}`;
       } catch (err) {
         console.error('Signup error:', err);
         setError('An unexpected error occurred. Please try again later.');
