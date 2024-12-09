@@ -48,12 +48,34 @@ serve(async (req) => {
         }
 
         try {
+          // Create user if doesn't exist
+          const { data: existingUser } = await supabase.auth.admin.listUsers({
+            filter: { email }
+          });
+
+          if (!existingUser?.users?.length) {
+            const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+              email,
+              email_confirm: true,
+              user_metadata: { stripe_customer_id: session.customer }
+            });
+
+            if (createError) {
+              console.error('Failed to create user:', createError);
+              return new Response('Failed to create user', { 
+                status: 500,
+                headers: corsHeaders 
+              });
+            }
+          }
+
           // Update profile
           const { error: updateError } = await supabase
             .from('profiles')
             .update({ 
               subscription_status: 'active',
-              stripe_customer_id: session.customer
+              stripe_customer_id: session.customer,
+              email
             })
             .eq('email', email);
 

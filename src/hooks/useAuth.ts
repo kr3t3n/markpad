@@ -45,12 +45,16 @@ export function useAuth() {
   const checkUserExists = async (email: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('subscription_status')
+      .select('subscription_status, email')
       .eq('email', email)
       .single();
     
     if (error) {
-      console.error('Error checking user:', error);
+      if (error.code === 'PGRST116') {
+        // No matching row found
+        return false;
+      }
+      console.error('Database error:', error);
       return false;
     }
     

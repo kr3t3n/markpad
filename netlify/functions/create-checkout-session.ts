@@ -43,7 +43,7 @@ const handler: Handler = async (event) => {
         quantity: 1,
       }],
       mode: 'subscription',
-      success_url: successUrl,
+      success_url: `${successUrl}?success=true&email={CHECKOUT_SESSION_CUSTOMER_EMAIL}`,
       cancel_url: cancelUrl,
       customer_email: email,
     });
