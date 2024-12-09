@@ -18,6 +18,15 @@ export function AuthCallback() {
         const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
         console.log('Hash params:', Object.fromEntries(hashParams.entries()));
 
+        // First check if we're already logged in
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('User already has valid session');
+          toast.success('Successfully signed in!');
+          navigate('/');
+          return;
+        }
+
         const code = searchParams.get('code');
         const token = searchParams.get('token') || hashParams.get('access_token');
         const email = searchParams.get('email') || hashParams.get('email');
@@ -80,7 +89,16 @@ export function AuthCallback() {
           return;
         }
 
-        // If we get here, we don't recognize the callback type
+        // If we get here with no auth parameters, check if we're logged in again
+        const { data: { session: finalSession } } = await supabase.auth.getSession();
+        if (finalSession) {
+          console.log('Session exists after callback');
+          toast.success('Successfully signed in!');
+          navigate('/');
+          return;
+        }
+
+        // Only show error if we have no session and no valid auth parameters
         console.error('Unknown callback type:', { code, token, email, type, paymentSuccess });
         toast.error('Invalid authentication callback. Please try again.');
         navigate('/auth');
