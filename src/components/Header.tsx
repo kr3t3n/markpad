@@ -1,25 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LogIn, LogOut, FileText, Sun, Moon } from 'lucide-react';
+import { LogIn, Save, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 export function Header() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
-
-  const handleAuth = async () => {
-    if (user) {
-      try {
-        await signOut();
-        // No need to navigate here as signOut() already handles navigation
-      } catch (error) {
-        console.error('Error in handleAuth:', error);
-      }
-    } else {
-      navigate('/auth');
-    }
-  };
 
   return (
     <div className="border-b dark:border-gray-700">
@@ -48,32 +35,36 @@ export function Header() {
           >
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          {!loading && user && (
-            <Link
-              to="/documents"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
-            >
-              <FileText size={18} />
-              My Documents
-            </Link>
-          )}
+
           {!loading && (
-            <button
-              onClick={handleAuth}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors sm:px-4 sm:py-2 p-2"
-            >
+            <>
               {user ? (
-                <>
-                  <LogOut size={18} />
-                  <span className="hidden sm:inline">Sign Out</span>
-                </>
+                <Link
+                  to="/documents"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Save size={18} />
+                  My Documents
+                </Link>
               ) : (
                 <>
-                  <LogIn size={18} />
-                  <span className="hidden sm:inline">Sign In</span>
+                  <button
+                    onClick={() => navigate('/signup')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Save size={18} />
+                    <span className="hidden sm:inline">Save & Manage</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('/auth')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <LogIn size={18} />
+                    <span className="hidden sm:inline">Sign In</span>
+                  </button>
                 </>
               )}
-            </button>
+            </>
           )}
         </div>
       </div>
