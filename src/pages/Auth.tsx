@@ -79,17 +79,19 @@ export function Auth() {
           toast.success('Check your email for the magic link!');
           setTimeRemaining(60); // Normal cooldown
         }
+      } else {
+        // If user doesn't exist or doesn't have active subscription, redirect to signup page
+        console.log('User needs to sign up first');
+        setIsLoading(false); // Make sure to set loading to false before navigation
+        navigate('/signup', { 
+          state: { 
+            email: emailAddress,
+            message: 'Please complete your registration to continue.'
+          },
+          replace: true // Use replace to prevent back button from showing blank page
+        });
         return;
       }
-
-      // If user doesn't exist or doesn't have active subscription, redirect to signup page
-      console.log('User needs to sign up first');
-      navigate('/signup', { 
-        state: { 
-          email: emailAddress,
-          message: 'Please complete your registration to continue.'
-        }
-      });
     } catch (error) {
       console.error('Authentication error:', error);
       toast.error('An error occurred. Please try again.');
