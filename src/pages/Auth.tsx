@@ -61,7 +61,7 @@ export function Auth() {
 
       if (exists) {
         // User exists and has active subscription, send magic link
-        console.log('User exists with active subscription, sending magic link');
+        console.log('User has active subscription, sending magic link');
         const { error: signInError } = await signInWithOtp(emailAddress);
         if (signInError) {
           console.error('Sign in error:', signInError);
@@ -78,6 +78,7 @@ export function Auth() {
 
       // If user doesn't exist or doesn't have active subscription, redirect to checkout
       console.log('User needs subscription, redirecting to checkout');
+      toast.info('Redirecting to subscription page...');
       const { url, error: stripeError } = await createCheckoutSession(emailAddress);
       if (stripeError) {
         console.error('Stripe checkout error:', stripeError);

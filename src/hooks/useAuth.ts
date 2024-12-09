@@ -67,34 +67,51 @@ export function useAuth() {
 
   const checkUserExists = async (email: string) => {
     try {
-      // First check if the user exists and has an active subscription
-      const { data, error } = await supabase
+      const normalizedEmail = email.toLowerCase();
+      console.log('Checking subscription status for:', normalizedEmail);
+
+      // Check profile and subscription status
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('subscription_status')
-        .eq('email', email.toLowerCase())
+        .select('subscription_status, subscription_end_date, email')
+        .eq('email', normalizedEmail)
         .maybeSingle();
 
-      if (error) {
-        console.error('Database error:', error);
+      if (profileError) {
+        console.error('Profile check error:', profileError);
         return false;
       }
 
-      if (!data) {
-        console.log('No profile found for email:', email);
+      // Case 4: No profile at all
+      if (!profile) {
+        console.log('No profile found for email:', normalizedEmail);
         return false;
       }
 
-      // Check if subscription is active
-      const isActive = data.subscription_status === 'active';
-      
-      if (!isActive) {
-        console.log('Subscription not active for email:', email);
+      // Case 2 & 3: Has profile but inactive subscription
+      if (profile.subscription_status !== 'active') {
+        console.log('Subscription not active:', {
+          email: normalizedEmail,
+          status: profile.subscription_status
+        });
         return false;
       }
 
-      return true;
+      // Case 1: Check if subscription is active and not expired
+      const endDate = profile.subscription_end_date ? new Date(profile.subscription_end_date) : null;
+      const isExpired = endDate ? endDate < new Date() : true;
+
+      console.log('Subscription check:', {
+        email: normalizedEmail,
+        status: profile.subscription_status,
+        endDate,
+        isExpired
+      });
+
+      // Only return true if subscription is active and not expired
+      return !isExpired;
     } catch (error) {
-      console.error('Error checking user subscription:', error);
+      console.error('Error checking subscription status:', error);
       return false;
     }
   };
