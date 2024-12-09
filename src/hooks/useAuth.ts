@@ -44,29 +44,39 @@ export function useAuth() {
 
   const checkUserExists = async (email: string) => {
     try {
+      // First check if the user exists and has an active subscription
       const { data, error } = await supabase
         .from('profiles')
         .select('subscription_status, subscription_end_date')
-        .eq('email', email)
-        .single();
-      
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No matching row found
-          return false;
-        }
         console.error('Database error:', error);
         return false;
       }
-      
-      if (!data) return false;
+
+      if (!data) {
+        console.log('No profile found for email:', email);
+        return false;
+      }
 
       // Check if subscription is active and not expired
       const isActive = data.subscription_status === 'active';
       const endDate = data.subscription_end_date ? new Date(data.subscription_end_date) : null;
       const isExpired = endDate && endDate < new Date();
 
-      return isActive && !isExpired;
+      if (!isActive) {
+        console.log('Subscription not active for email:', email);
+        return false;
+      }
+
+      if (isExpired) {
+        console.log('Subscription expired for email:', email);
+        return false;
+      }
+
+      return true;
     } catch (error) {
       console.error('Error checking user subscription:', error);
       return false;

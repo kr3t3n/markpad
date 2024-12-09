@@ -78,43 +78,63 @@ serve(async (req) => {
         const checkoutSession = event.data.object as Stripe.Checkout.Session;
         if (checkoutSession.mode === 'subscription') {
           const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
-          const email = checkoutSession.customer_details?.email;
+          const email = checkoutSession.customer_details?.email?.toLowerCase(); // Ensure email is lowercase
           
           if (!email) {
             console.error('No email found in checkout session');
             break;
           }
 
-          // First check if profile exists
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('email', email)
-            .single();
+          try {
+            // First check if profile exists
+            const { data: existingProfile, error: lookupError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', email)
+              .single();
 
-          if (existingProfile) {
-            // Update existing profile
-            await supabase
-              .from('profiles')
-              .update({
-                stripe_customer_id: checkoutSession.customer as string,
-                subscription_status: 'active',
-                subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', existingProfile.id);
-          } else {
-            // Create new profile
-            await supabase
-              .from('profiles')
-              .insert({
-                email,
-                stripe_customer_id: checkoutSession.customer as string,
-                subscription_status: 'active',
-                subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              });
+            if (lookupError) {
+              console.error('Error looking up profile:', lookupError);
+              break;
+            }
+
+            const profileData = {
+              stripe_customer_id: checkoutSession.customer as string,
+              subscription_status: 'active',
+              subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            if (existingProfile) {
+              // Update existing profile
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update(profileData)
+                .eq('id', existingProfile.id);
+
+              if (updateError) {
+                console.error('Error updating profile:', updateError);
+                break;
+              }
+              console.log('Successfully updated profile for:', email);
+            } else {
+              // Create new profile
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  ...profileData,
+                  email,
+                  created_at: new Date().toISOString()
+                });
+
+              if (insertError) {
+                console.error('Error creating profile:', insertError);
+                break;
+              }
+              console.log('Successfully created profile for:', email);
+            }
+          } catch (error) {
+            console.error('Error processing checkout session:', error);
           }
         }
         break;
