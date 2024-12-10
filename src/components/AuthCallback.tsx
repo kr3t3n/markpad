@@ -93,17 +93,42 @@ export function AuthCallback() {
               return;
             }
 
-            console.log('Got session, user ID:', data.session.user.id);
+            console.log('Got session, user:', { 
+              id: data.session.user.id,
+              email: data.session.user.email,
+              lastSignIn: data.session.user.last_sign_in_at
+            });
 
             // First check profile status
             console.log('Checking profile status...');
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
-              .select('subscription_status')
-              .eq('email', data.session.user.email)
+              .select('*')
+              .eq('id', data.session.user.id)
               .single();
 
             console.log('Profile check result:', { profile, error: profileError });
+
+            if (profileError) {
+              console.log('Creating new profile...');
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([
+                  { 
+                    id: data.session.user.id,
+                    email: data.session.user.email,
+                    subscription_status: 'pending'
+                  }
+                ]);
+              
+              if (insertError) {
+                console.error('Error creating profile:', insertError);
+                toast.error('Error creating user profile. Please try again.');
+                await supabase.auth.signOut();
+                navigate('/auth');
+                return;
+              }
+            }
 
             if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
               console.log('Found active subscription in profile');
@@ -118,24 +143,35 @@ export function AuthCallback() {
               .from('subscriptions')
               .select('*')
               .eq('user_id', data.session.user.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
               .maybeSingle();
 
             console.log('Subscription check result:', { subscription, error: subError });
 
             if (subError) {
               console.error('Error fetching subscription:', subError);
-              // Sign out and redirect to auth
-              await supabase.auth.signOut();
               toast.error('Error verifying subscription. Please try again.');
+              await supabase.auth.signOut();
               navigate('/auth', { replace: true });
               return;
             }
 
             if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-              console.log('No active subscription, signing out and redirecting to signup');
-              await supabase.auth.signOut();
+              console.log('No active subscription, redirecting to signup');
+              toast.info('Please choose a subscription plan to continue.');
               navigate('/signup', { replace: true });
               return;
+            }
+
+            // Update profile with subscription status
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ subscription_status: subscription.status })
+              .eq('id', data.session.user.id);
+
+            if (updateError) {
+              console.error('Error updating profile:', updateError);
             }
 
             console.log('Found active subscription, redirecting to documents');
