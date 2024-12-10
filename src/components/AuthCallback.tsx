@@ -99,84 +99,93 @@ export function AuthCallback() {
               lastSignIn: data.session.user.last_sign_in_at
             });
 
-            // First check profile status
-            console.log('Checking profile status...');
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.session.user.id)
-              .single();
-
-            console.log('Profile check result:', { profile, error: profileError });
-
-            if (profileError) {
-              console.log('Creating new profile...');
-              const { error: insertError } = await supabase
+            try {
+              // First check profile status
+              console.log('Checking profile status...');
+              const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .insert([
-                  { 
-                    id: data.session.user.id,
-                    email: data.session.user.email,
-                    subscription_status: 'pending'
-                  }
-                ]);
-              
-              if (insertError) {
-                console.error('Error creating profile:', insertError);
-                toast.error('Error creating user profile. Please try again.');
-                await supabase.auth.signOut();
-                navigate('/auth');
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
+
+              console.log('Profile check result:', { profile, error: profileError });
+
+              // If no profile exists, create one
+              if (profileError && profileError.code === 'PGRST116') {
+                console.log('No profile found, creating new profile...');
+                const { error: insertError } = await supabase
+                  .from('profiles')
+                  .insert([
+                    { 
+                      id: data.session.user.id,
+                      email: data.session.user.email,
+                      subscription_status: 'pending'
+                    }
+                  ]);
+                
+                if (insertError) {
+                  console.error('Error creating profile:', insertError);
+                  toast.error('Error creating user profile. Please try again.');
+                  await supabase.auth.signOut();
+                  navigate('/auth');
+                  return;
+                }
+              } else if (profileError) {
+                throw profileError;
+              }
+
+              // Check if profile has active subscription
+              if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+                console.log('Found active subscription in profile');
+                toast.success('Successfully signed in!');
+                navigate('/documents', { replace: true });
                 return;
               }
-            }
 
-            if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
-              console.log('Found active subscription in profile');
+              // If no active profile subscription, check subscriptions table
+              console.log('Checking subscriptions table...');
+              const { data: subscription, error: subError } = await supabase
+                .from('subscriptions')
+                .select('*')
+                .eq('user_id', data.session.user.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              console.log('Subscription check result:', { subscription, error: subError });
+
+              if (subError) {
+                throw subError;
+              }
+
+              if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+                console.log('No active subscription found, redirecting to signup');
+                toast.info('Please choose a subscription plan to continue.');
+                navigate('/signup', { replace: true });
+                return;
+              }
+
+              // Update profile with subscription status
+              console.log('Updating profile with subscription status...');
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ subscription_status: subscription.status })
+                .eq('id', data.session.user.id);
+
+              if (updateError) {
+                console.error('Error updating profile:', updateError);
+              }
+
+              console.log('Found active subscription, redirecting to documents');
               toast.success('Successfully signed in!');
               navigate('/documents', { replace: true });
-              return;
-            }
 
-            // If no active profile subscription, check subscriptions table
-            console.log('Checking subscriptions table...');
-            const { data: subscription, error: subError } = await supabase
-              .from('subscriptions')
-              .select('*')
-              .eq('user_id', data.session.user.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            console.log('Subscription check result:', { subscription, error: subError });
-
-            if (subError) {
-              console.error('Error fetching subscription:', subError);
+            } catch (error) {
+              console.error('Error in subscription check:', error);
               toast.error('Error verifying subscription. Please try again.');
               await supabase.auth.signOut();
               navigate('/auth', { replace: true });
-              return;
             }
-
-            if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-              console.log('No active subscription, redirecting to signup');
-              toast.info('Please choose a subscription plan to continue.');
-              navigate('/signup', { replace: true });
-              return;
-            }
-
-            // Update profile with subscription status
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ subscription_status: subscription.status })
-              .eq('id', data.session.user.id);
-
-            if (updateError) {
-              console.error('Error updating profile:', updateError);
-            }
-
-            console.log('Found active subscription, redirecting to documents');
-            toast.success('Successfully signed in!');
-            navigate('/documents', { replace: true });
           } catch (error) {
             console.error('Unexpected error in auth callback:', error);
             toast.error('An unexpected error occurred. Please try again.');

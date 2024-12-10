@@ -45,7 +45,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   const checkSubscriptionAndSetUser = async (session: any) => {
+    console.log('Checking subscription for session:', session);
+    
     if (!session?.user) {
+      console.log('No session or user, clearing state');
       setUser(null);
       setSubscription(null);
       setLoading(false);
@@ -54,49 +57,74 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       // Check profile first
-      const { data: profile } = await supabase
+      console.log('Checking profile...');
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('subscription_status')
-        .eq('email', session.user.email)
+        .select('*')
+        .eq('id', session.user.id)
         .single();
 
+      console.log('Profile check result:', { profile, error: profileError });
+
+      // If no profile exists, create one
+      if (profileError && profileError.code === 'PGRST116') {
+        console.log('Creating new profile...');
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              id: session.user.id,
+              email: session.user.email,
+              subscription_status: 'pending'
+            }
+          ]);
+        
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          throw insertError;
+        }
+      } else if (profileError) {
+        throw profileError;
+      }
+
       if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+        console.log('Found active subscription in profile');
         setUser(session.user);
         setLoading(false);
         return;
       }
 
       // Then check subscriptions table
+      console.log('Checking subscriptions...');
       const { data: subscription, error: subError } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', session.user.id)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      console.log('Subscription check result:', { subscription, error: subError });
 
       if (subError) {
-        console.error('Error fetching subscription:', subError);
-        await supabase.auth.signOut();
-        setUser(null);
-        setSubscription(null);
-        setLoading(false);
-        return;
+        throw subError;
       }
 
       if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-        console.log('No active subscription found, signing out');
-        await supabase.auth.signOut();
+        console.log('No active subscription found');
         setUser(null);
         setSubscription(null);
       } else {
+        console.log('Found active subscription');
         setUser(session.user);
         setSubscription(subscription);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
-      await supabase.auth.signOut();
       setUser(null);
       setSubscription(null);
     }
+    
     setLoading(false);
   };
 
