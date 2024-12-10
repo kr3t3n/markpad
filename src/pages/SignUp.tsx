@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { createCheckoutSession } from '../lib/stripe';
-import { toast } from 'sonner';
+import { toast } from 'react-hot-toast';
 import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 
 type PricingPlan = 'monthly' | 'yearly';

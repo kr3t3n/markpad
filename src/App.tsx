@@ -9,6 +9,9 @@ import { SignUp } from './pages/SignUp';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useTheme } from './hooks/useTheme';
 import { Footer } from './components/Footer';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { Contact } from './pages/Contact';
 
 function App() {
   const { isDark } = useTheme();
@@ -22,6 +25,9 @@ function App() {
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/contact" element={<Contact />} />
           <Route
             path="/documents"
             element={
