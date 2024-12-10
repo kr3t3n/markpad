@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Header } from './components/Header';
 import { Editor } from './components/Editor';
@@ -8,15 +8,15 @@ import { Documents } from './pages/Documents';
 import { SignUp } from './pages/SignUp';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useTheme } from './hooks/useTheme';
+import { Footer } from './components/Footer';
 
 function App() {
   const { isDark } = useTheme();
 
   return (
-    <Router>
-      <div className={`min-h-screen ${isDark ? 'dark bg-gray-900 text-gray-100' : 'bg-white text-gray-900'}`}>
-        <Header />
-        <Toaster position="top-right" />
+    <div className={`min-h-screen flex flex-col ${isDark ? 'dark bg-gray-900 text-gray-100' : 'bg-white text-gray-900'}`}>
+      <Header />
+      <main className="flex-grow container mx-auto px-4">
         <Routes>
           <Route path="/" element={<Editor />} />
           <Route path="/auth" element={<Auth />} />
@@ -47,8 +47,15 @@ function App() {
             }
           />
         </Routes>
-      </div>
-    </Router>
+      </main>
+      <Footer />
+      <Toaster 
+        position="bottom-right" 
+        containerStyle={{
+          bottom: 40
+        }}
+      />
+    </div>
   );
 }
 

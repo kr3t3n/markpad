@@ -96,6 +96,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          shouldCreateUser: true
         },
       });
 

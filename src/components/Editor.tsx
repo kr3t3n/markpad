@@ -197,8 +197,8 @@ export function Editor() {
   };
 
   return (
-    <div className="container mx-auto px-0 sm:px-4 flex-1 flex flex-col">
-      <div className="bg-white dark:bg-gray-800 rounded-none sm:rounded-lg shadow-lg flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col h-[calc(100vh-theme(spacing.16))]">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-none sm:rounded-lg shadow-lg overflow-hidden">
         {user && (
           <div className="flex items-center gap-4 p-4 border-b dark:border-gray-700">
             <input
@@ -245,7 +245,7 @@ export function Editor() {
         />
         
         <div className={clsx(
-          "flex-1 flex gap-4 p-4 overflow-hidden min-h-0",
+          "flex-1 flex gap-4 p-4 min-h-0",
           isVertical ? "flex-col" : "flex-col lg:flex-row"
         )}>
           <Card
@@ -253,14 +253,14 @@ export function Editor() {
             isExpanded={isEditorExpanded}
             onToggle={() => setIsEditorExpanded(!isEditorExpanded)}
             className={clsx(
-              "flex flex-col min-h-0",
+              "flex-1 min-h-0",
               !isVertical && "transition-[flex-basis]",
               !isVertical && isEditorExpanded && isPreviewExpanded && "lg:basis-1/2",
               !isVertical && isEditorExpanded && !isPreviewExpanded && "lg:basis-full",
               !isVertical && !isEditorExpanded && "lg:basis-[40px]"
             )}
           >
-            <div className="relative flex-1">
+            <div className="relative flex-1 h-full">
               <textarea
                 className="absolute inset-0 w-full h-full p-4 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono resize-none dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
                 value={content}
@@ -277,14 +277,14 @@ export function Editor() {
             isExpanded={isPreviewExpanded}
             onToggle={() => setIsPreviewExpanded(!isPreviewExpanded)}
             className={clsx(
-              "flex flex-col min-h-0",
+              "flex-1 min-h-0",
               !isVertical && "transition-[flex-basis]",
               !isVertical && isPreviewExpanded && isEditorExpanded && "lg:basis-1/2",
               !isVertical && isPreviewExpanded && !isEditorExpanded && "lg:basis-full",
               !isVertical && !isPreviewExpanded && "lg:basis-[40px]"
             )}
           >
-            <div className="relative flex-1">
+            <div className="relative flex-1 h-full">
               <div 
                 ref={previewRef}
                 className="absolute inset-0 h-full prose dark:prose-invert max-w-none p-4 border rounded-lg overflow-y-auto dark:border-gray-700"

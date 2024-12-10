@@ -12,7 +12,7 @@ interface CardProps {
 
 export function Card({ title, isExpanded, onToggle, children, className }: CardProps) {
   return (
-    <div className={clsx("flex-1 min-h-[40px] space-y-2", className)}>
+    <div className={clsx("flex flex-col h-full", className)}>
       <button
         onClick={onToggle}
         className="flex items-center gap-2 text-lg font-semibold hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -21,7 +21,11 @@ export function Card({ title, isExpanded, onToggle, children, className }: CardP
         {title}
       </button>
       
-      {isExpanded && children}
+      {isExpanded && (
+        <div className="flex-1 mt-2 min-h-0">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

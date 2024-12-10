@@ -41,34 +41,69 @@ export function Auth() {
     }
 
     try {
-      // Check if user has an active subscription first
-      const { data: subscription, error: subError } = await supabase
-        .from('subscriptions')
-        .select('status')
+      console.log('Checking profile for email:', emailAddress);
+      // First get the user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, subscription_status')
         .eq('email', emailAddress.toLowerCase())
         .maybeSingle();
 
-      if (subError) {
-        console.error('Error checking subscription:', subError);
-        // Continue with sign in even if subscription check fails
+      if (profileError) {
+        console.error('Error checking profile:', profileError);
       }
 
-      if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-        // No active subscription, redirect to signup with email
-        navigate(`/signup?email=${encodeURIComponent(emailAddress)}`);
+      console.log('Profile data:', profile);
+
+      // Check subscription status from profiles table first
+      if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+        console.log('Found active subscription in profiles:', profile.subscription_status);
+        const { error } = await signInWithOtp(emailAddress);
+        if (error) {
+          setError(error.message);
+          toast.error(error.message);
+          return;
+        }
+
+        // Set cooldown timer
+        setTimeRemaining(60);
+        toast.success('Check your email for the magic link!');
         return;
       }
 
-      const { error } = await signInWithOtp(emailAddress);
-      if (error) {
-        setError(error.message);
-        toast.error(error.message);
-        return;
+      // If no active subscription in profiles, check subscriptions table
+      if (profile?.id) {
+        const { data: subscription, error: subError } = await supabase
+          .from('subscriptions')
+          .select('status')
+          .eq('user_id', profile.id)
+          .maybeSingle();
+
+        if (subError) {
+          console.error('Error checking subscription:', subError);
+        }
+
+        console.log('Subscription data:', subscription);
+
+        if (subscription && (subscription.status === 'active' || subscription.status === 'trialing')) {
+          console.log('Found active subscription with status:', subscription.status);
+          const { error } = await signInWithOtp(emailAddress);
+          if (error) {
+            setError(error.message);
+            toast.error(error.message);
+            return;
+          }
+
+          // Set cooldown timer
+          setTimeRemaining(60);
+          toast.success('Check your email for the magic link!');
+          return;
+        }
       }
 
-      // Set cooldown timer
-      setTimeRemaining(60);
-      toast.success('Check your email for the magic link!');
+      // No active subscription found, redirect to signup
+      console.log('No active subscription found, redirecting to signup');
+      navigate(`/signup?email=${encodeURIComponent(emailAddress)}`);
     } catch (error) {
       console.error('Error in handleMagicLink:', error);
       setError('An unexpected error occurred. Please try again.');

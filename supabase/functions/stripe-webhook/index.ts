@@ -99,7 +99,25 @@ serve(async (req) => {
 
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      
+      // Log the webhook event
+      await supabase
+        .from('stripe_webhook_events')
+        .insert({
+          type: event.type,
+          data: event.data.object,
+        });
+        
     } catch (err) {
+      // Log failed webhook
+      await supabase
+        .from('stripe_webhook_events')
+        .insert({
+          type: 'unknown',
+          data: { body },
+          status: 'error',
+          error_message: err.message
+        });
       return new Response(`Webhook Error: ${err.message}`, { status: 400 });
     }
 
