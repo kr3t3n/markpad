@@ -95,20 +95,31 @@ export function AuthCallback() {
 
             console.log('Got session, user ID:', data.session.user.id);
 
-            // Set the session immediately
-            const { error: setSessionError } = await supabase.auth.setSession(data.session);
-            if (setSessionError) {
-              console.error('Error setting session:', setSessionError);
-              toast.error('Failed to set session. Please try again.');
-              navigate('/auth');
+            // Check subscription status
+            console.log('Checking subscription...');
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('subscription_status')
+              .eq('id', data.session.user.id)
+              .single();
+
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+              navigate('/signup', { replace: true });
               return;
             }
 
-            // Check subscription status
-            console.log('Checking subscription...');
+            if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+              console.log('Found active subscription in profile');
+              toast.success('Successfully signed in!');
+              navigate('/documents', { replace: true });
+              return;
+            }
+
+            // If no active profile subscription, check subscriptions table
             const { data: subscription, error: subError } = await supabase
               .from('subscriptions')
-              .select('*')
+              .select('status')
               .eq('user_id', data.session.user.id)
               .maybeSingle();
 
@@ -116,7 +127,6 @@ export function AuthCallback() {
 
             if (subError) {
               console.error('Error fetching subscription:', subError);
-              // Don't fail on subscription error, just redirect to signup
               navigate('/signup', { replace: true });
               return;
             }
@@ -127,9 +137,9 @@ export function AuthCallback() {
               return;
             }
 
-            console.log('All checks passed, redirecting to home');
+            console.log('Found active subscription, redirecting to documents');
             toast.success('Successfully signed in!');
-            navigate('/', { replace: true });
+            navigate('/documents', { replace: true });
           } catch (error) {
             console.error('Unexpected error in auth callback:', error);
             toast.error('An unexpected error occurred. Please try again.');
@@ -150,12 +160,12 @@ export function AuthCallback() {
     };
 
     handleAuthCallback();
-  }, [navigate, searchParams]);
+  }, [searchParams, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <Loader2 className="w-8 h-8 animate-spin" />
-      <p className="mt-4 text-gray-600 dark:text-gray-300">Verifying your authentication...</p>
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <Loader2 className="w-8 h-8 animate-spin text-gray-500 mb-4" />
+      <div className="text-gray-600">Verifying your authentication...</div>
     </div>
   );
 }
