@@ -95,19 +95,15 @@ export function AuthCallback() {
 
             console.log('Got session, user ID:', data.session.user.id);
 
-            // Check subscription status
-            console.log('Checking subscription...');
+            // First check profile status
+            console.log('Checking profile status...');
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('subscription_status')
-              .eq('id', data.session.user.id)
+              .eq('email', data.session.user.email)
               .single();
 
-            if (profileError) {
-              console.error('Error fetching profile:', profileError);
-              navigate('/signup', { replace: true });
-              return;
-            }
+            console.log('Profile check result:', { profile, error: profileError });
 
             if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
               console.log('Found active subscription in profile');
@@ -117,9 +113,10 @@ export function AuthCallback() {
             }
 
             // If no active profile subscription, check subscriptions table
+            console.log('Checking subscriptions table...');
             const { data: subscription, error: subError } = await supabase
               .from('subscriptions')
-              .select('status')
+              .select('*')
               .eq('user_id', data.session.user.id)
               .maybeSingle();
 
@@ -127,12 +124,16 @@ export function AuthCallback() {
 
             if (subError) {
               console.error('Error fetching subscription:', subError);
-              navigate('/signup', { replace: true });
+              // Sign out and redirect to auth
+              await supabase.auth.signOut();
+              toast.error('Error verifying subscription. Please try again.');
+              navigate('/auth', { replace: true });
               return;
             }
 
             if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
-              console.log('No active subscription, redirecting to signup');
+              console.log('No active subscription, signing out and redirecting to signup');
+              await supabase.auth.signOut();
               navigate('/signup', { replace: true });
               return;
             }
@@ -160,12 +161,12 @@ export function AuthCallback() {
     };
 
     handleAuthCallback();
-  }, [searchParams, navigate]);
+  }, [navigate, searchParams]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
-      <Loader2 className="w-8 h-8 animate-spin text-gray-500 mb-4" />
-      <div className="text-gray-600">Verifying your authentication...</div>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <Loader2 className="w-8 h-8 animate-spin" />
+      <p className="mt-4 text-gray-600 dark:text-gray-300">Verifying your authentication...</p>
     </div>
   );
 }
