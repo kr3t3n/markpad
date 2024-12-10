@@ -4,7 +4,7 @@ import { LogIn, Save, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 export function Header() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -39,13 +39,22 @@ export function Header() {
           {!loading && (
             <>
               {user ? (
-                <Link
-                  to="/documents"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <Save size={18} />
-                  My Documents
-                </Link>
+                <>
+                  <Link
+                    to="/documents"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <Save size={18} />
+                    My Documents
+                  </Link>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <LogIn size={18} className="rotate-180" />
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </button>
+                </>
               ) : (
                 <>
                   <button

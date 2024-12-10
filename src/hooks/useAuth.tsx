@@ -44,32 +44,66 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
-  const fetchSubscription = async (userId: string) => {
+  const checkSubscriptionAndSetUser = async (session: any) => {
+    if (!session?.user) {
+      setUser(null);
+      setSubscription(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { data: subscription, error } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
+      // Check profile first
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_status')
+        .eq('email', session.user.email)
         .single();
 
-      if (error) {
-        throw error;
+      if (profile?.subscription_status === 'active' || profile?.subscription_status === 'trialing') {
+        setUser(session.user);
+        setLoading(false);
+        return;
       }
 
-      setSubscription(subscription);
+      // Then check subscriptions table
+      const { data: subscription, error: subError } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (subError) {
+        console.error('Error fetching subscription:', subError);
+        await supabase.auth.signOut();
+        setUser(null);
+        setSubscription(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!subscription || (subscription.status !== 'active' && subscription.status !== 'trialing')) {
+        console.log('No active subscription found, signing out');
+        await supabase.auth.signOut();
+        setUser(null);
+        setSubscription(null);
+      } else {
+        setUser(session.user);
+        setSubscription(subscription);
+      }
     } catch (error) {
-      console.error('Error fetching subscription:', error);
+      console.error('Error checking subscription:', error);
+      await supabase.auth.signOut();
+      setUser(null);
+      setSubscription(null);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchSubscription(session.user.id);
-      }
-      setLoading(false);
+      checkSubscriptionAndSetUser(session);
     });
 
     // Listen for auth changes
@@ -77,12 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       console.log('Auth state changed:', { event: _event, session });
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchSubscription(session.user.id);
-      } else {
-        setSubscription(null);
-      }
+      await checkSubscriptionAndSetUser(session);
     });
 
     return () => {
