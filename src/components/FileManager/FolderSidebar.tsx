@@ -28,7 +28,11 @@ interface FolderSidebarProps {
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
   onMoveDocument?: (docId: string, folderId: string | null) => void
+  onMoveMultipleDocuments?: (docIds: string[], folderId: string | null) => void
   onDeleteDocument?: (docId: string) => void
+  onDeleteMultipleDocuments?: (docIds: string[]) => void
+  onReorderFolder?: (folderId: string, direction: 'up' | 'down') => void
+  onMoveFolder?: (folderId: string, newParentId: string | null) => void
   open: boolean
   onClose: () => void
 }
@@ -37,12 +41,17 @@ interface FolderNodeProps {
   folder: Folder
   children: Folder[]
   allFolders: Folder[]
+  siblings: Folder[]
   activeFolderId: string | null | 'all'
   onSelect: (id: string) => void
   onRename: (id: string, name: string) => void
   onDelete: (id: string) => void
   onCreateChild: (parentId: string) => void
   onMoveDocument?: (docId: string, folderId: string | null) => void
+  onMoveMultipleDocuments?: (docIds: string[], folderId: string | null) => void
+  onReorderFolder?: (folderId: string, direction: 'up' | 'down') => void
+  onMoveFolder?: (folderId: string, newParentId: string | null) => void
+  onDropFolder?: (draggedId: string, targetId: string) => void
   depth: number
 }
 
@@ -50,23 +59,42 @@ function FolderNode({
   folder,
   children,
   allFolders,
+  siblings,
   activeFolderId,
   onSelect,
   onRename,
   onDelete,
   onCreateChild,
   onMoveDocument,
+  onMoveMultipleDocuments,
+  onReorderFolder,
+  onMoveFolder,
+  onDropFolder,
   depth,
 }: FolderNodeProps) {
   const [expanded, setExpanded] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [moveUnderOpen, setMoveUnderOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)
   const [dragOver, setDragOver] = useState(false)
+  const [folderDragOver, setFolderDragOver] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isActive = activeFolderId === folder.id
+  const sortedSiblings = [...siblings].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  const siblingIndex = sortedSiblings.findIndex(s => s.id === folder.id)
+  const isFirst = siblingIndex === 0
+  const isLast = siblingIndex === sortedSiblings.length - 1
+
+  // Other folders this can be moved under (exclude self and descendants)
+  const getDescendantIds = (fId: string): string[] => {
+    const childFolders = allFolders.filter(f => f.parentId === fId)
+    return [fId, ...childFolders.flatMap(c => getDescendantIds(c.id))]
+  }
+  const descendantIds = getDescendantIds(folder.id)
+  const moveTargets = allFolders.filter(f => !descendantIds.includes(f.id))
 
   useEffect(() => {
     if (renaming) inputRef.current?.focus()
@@ -76,6 +104,7 @@ function FolderNode({
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false)
+        setMoveUnderOpen(false)
       }
     }
     if (menuOpen) document.addEventListener('mousedown', handleClick)
@@ -95,12 +124,20 @@ function FolderNode({
   return (
     <div>
       <div
+        draggable={!renaming}
+        onDragStart={e => {
+          e.dataTransfer.setData('application/markpad-folder-id', folder.id)
+          e.dataTransfer.effectAllowed = 'move'
+          e.stopPropagation()
+        }}
         className={`group relative flex items-center gap-1 rounded px-2 py-1 text-sm cursor-pointer transition-colors ${
-          dragOver
-            ? 'bg-[var(--color-accent)]/20 ring-2 ring-[var(--color-accent)] ring-inset'
-            : isActive
-              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium'
-              : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
+          folderDragOver
+            ? 'bg-[var(--color-accent)]/30 ring-2 ring-[var(--color-accent)] ring-inset'
+            : dragOver
+              ? 'bg-[var(--color-accent)]/20 ring-2 ring-[var(--color-accent)] ring-inset'
+              : isActive
+                ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => onSelect(folder.id)}
@@ -109,16 +146,39 @@ function FolderNode({
           setMenuOpen(true)
         }}
         onDragOver={e => {
-          if (e.dataTransfer.types.includes('application/markpad-doc-id')) {
-            e.preventDefault()
+          e.preventDefault()
+          e.stopPropagation()
+          if (e.dataTransfer.types.includes('application/markpad-folder-id')) {
+            e.dataTransfer.dropEffect = 'move'
+            setFolderDragOver(true)
+          } else if (e.dataTransfer.types.includes('application/markpad-doc-ids') || e.dataTransfer.types.includes('application/markpad-doc-id')) {
             e.dataTransfer.dropEffect = 'move'
             setDragOver(true)
           }
         }}
-        onDragLeave={() => setDragOver(false)}
+        onDragLeave={() => {
+          setDragOver(false)
+          setFolderDragOver(false)
+        }}
         onDrop={e => {
           e.preventDefault()
+          e.stopPropagation()
           setDragOver(false)
+          setFolderDragOver(false)
+          const folderId = e.dataTransfer.getData('application/markpad-folder-id')
+          if (folderId && folderId !== folder.id && onDropFolder) {
+            onDropFolder(folderId, folder.id)
+            return
+          }
+          // Multi-doc drop
+          const docIdsJson = e.dataTransfer.getData('application/markpad-doc-ids')
+          if (docIdsJson && onMoveMultipleDocuments) {
+            try {
+              const ids = JSON.parse(docIdsJson) as string[]
+              onMoveMultipleDocuments(ids, folder.id)
+            } catch {}
+            return
+          }
           const docId = e.dataTransfer.getData('application/markpad-doc-id')
           if (docId && onMoveDocument) {
             onMoveDocument(docId, folder.id)
@@ -184,7 +244,7 @@ function FolderNode({
         {menuOpen && (
           <div
             ref={menuRef}
-            className="absolute right-2 top-full z-30 mt-1 min-w-[120px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
+            className="absolute right-2 top-full z-30 mt-1 min-w-[140px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -206,6 +266,76 @@ function FolderNode({
               New subfolder
             </button>
             <hr className="my-1 border-[var(--color-border)]" />
+            {!isFirst && onReorderFolder && (
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onReorderFolder(folder.id, 'up')
+                }}
+              >
+                Move up
+              </button>
+            )}
+            {!isLast && onReorderFolder && (
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onReorderFolder(folder.id, 'down')
+                }}
+              >
+                Move down
+              </button>
+            )}
+            {onMoveFolder && (
+              <div className="relative">
+                <button
+                  className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                  onClick={() => setMoveUnderOpen(prev => !prev)}
+                >
+                  Move under…
+                </button>
+                {moveUnderOpen && (
+                  <div className="absolute left-full top-0 z-40 ml-1 min-w-[140px] max-h-[200px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
+                    {folder.parentId !== null && (
+                      <button
+                        className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setMoveUnderOpen(false)
+                          onMoveFolder(folder.id, null)
+                        }}
+                      >
+                        Root (no parent)
+                      </button>
+                    )}
+                    {moveTargets.map(f => (
+                      <button
+                        key={f.id}
+                        className={`w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--color-bg-secondary)] ${
+                          f.id === folder.parentId
+                            ? 'text-[var(--color-text-tertiary)]'
+                            : 'text-[var(--color-text)]'
+                        }`}
+                        disabled={f.id === folder.parentId}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setMoveUnderOpen(false)
+                          onMoveFolder(folder.id, f.id)
+                        }}
+                      >
+                        {f.name}
+                        {f.id === folder.parentId && ' (current)'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {(onReorderFolder || onMoveFolder) && (
+              <hr className="my-1 border-[var(--color-border)]" />
+            )}
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-danger)] hover:bg-[var(--color-bg-secondary)]"
               onClick={() => {
@@ -223,14 +353,19 @@ function FolderNode({
           <FolderNode
             key={child.id}
             folder={child}
-            children={allFolders.filter(f => f.parentId === child.id)}
+            children={allFolders.filter(f => f.parentId === child.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))}
             allFolders={allFolders}
+            siblings={children}
             activeFolderId={activeFolderId}
             onSelect={onSelect}
             onRename={onRename}
             onDelete={onDelete}
             onCreateChild={onCreateChild}
             onMoveDocument={onMoveDocument}
+            onMoveMultipleDocuments={onMoveMultipleDocuments}
+            onReorderFolder={onReorderFolder}
+            onMoveFolder={onMoveFolder}
+            onDropFolder={onDropFolder}
             depth={depth + 1}
           />
         ))}
@@ -249,7 +384,11 @@ export function FolderSidebar({
   onRenameFolder,
   onDeleteFolder,
   onMoveDocument,
+  onMoveMultipleDocuments,
   onDeleteDocument,
+  onDeleteMultipleDocuments,
+  onReorderFolder,
+  onMoveFolder,
   open,
   onClose,
 }: FolderSidebarProps) {
@@ -261,6 +400,7 @@ export function FolderSidebar({
   const [dragOverUnfiled, setDragOverUnfiled] = useState(false)
   const [dragOverTrash, setDragOverTrash] = useState(false)
   const [trashDocId, setTrashDocId] = useState<string | null>(null)
+  const [trashDocIds, setTrashDocIds] = useState<string[] | null>(null)
   const newFolderRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -280,6 +420,13 @@ export function FolderSidebar({
   function startCreateChild(parentId: string) {
     setNewFolderParentId(parentId)
     setCreatingFolder(true)
+  }
+
+  // Handle folder dropped onto another folder (make it a child)
+  function handleDropFolder(draggedId: string, targetId: string) {
+    if (onMoveFolder) {
+      onMoveFolder(draggedId, targetId)
+    }
   }
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -313,7 +460,7 @@ export function FolderSidebar({
     document.addEventListener('mouseup', onMouseUp)
   }, [sidebarWidth])
 
-  const rootFolders = folders.filter(f => f.parentId === null)
+  const rootFolders = folders.filter(f => f.parentId === null).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -371,7 +518,7 @@ export function FolderSidebar({
             onSelectTag(null)
           }}
           onDragOver={e => {
-            if (e.dataTransfer.types.includes('application/markpad-doc-id')) {
+            if (e.dataTransfer.types.includes('application/markpad-doc-id') || e.dataTransfer.types.includes('application/markpad-doc-ids')) {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
               setDragOverUnfiled(true)
@@ -381,6 +528,14 @@ export function FolderSidebar({
           onDrop={e => {
             e.preventDefault()
             setDragOverUnfiled(false)
+            const docIdsJson = e.dataTransfer.getData('application/markpad-doc-ids')
+            if (docIdsJson && onMoveMultipleDocuments) {
+              try {
+                const ids = JSON.parse(docIdsJson) as string[]
+                onMoveMultipleDocuments(ids, null)
+              } catch {}
+              return
+            }
             const docId = e.dataTransfer.getData('application/markpad-doc-id')
             if (docId && onMoveDocument) {
               onMoveDocument(docId, null)
@@ -398,8 +553,9 @@ export function FolderSidebar({
           <FolderNode
             key={f.id}
             folder={f}
-            children={folders.filter(c => c.parentId === f.id)}
+            children={folders.filter(c => c.parentId === f.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))}
             allFolders={folders}
+            siblings={rootFolders}
             activeFolderId={activeFolderId}
             onSelect={id => {
               onSelectFolder(id)
@@ -409,6 +565,10 @@ export function FolderSidebar({
             onDelete={onDeleteFolder}
             onCreateChild={startCreateChild}
             onMoveDocument={onMoveDocument}
+            onMoveMultipleDocuments={onMoveMultipleDocuments}
+            onReorderFolder={onReorderFolder}
+            onMoveFolder={onMoveFolder}
+            onDropFolder={handleDropFolder}
             depth={0}
           />
         ))}
@@ -475,7 +635,7 @@ export function FolderSidebar({
               : 'border-[var(--color-border)] text-[var(--color-text-tertiary)]'
           }`}
           onDragOver={e => {
-            if (e.dataTransfer.types.includes('application/markpad-doc-id')) {
+            if (e.dataTransfer.types.includes('application/markpad-doc-id') || e.dataTransfer.types.includes('application/markpad-doc-ids')) {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
               setDragOverTrash(true)
@@ -485,6 +645,14 @@ export function FolderSidebar({
           onDrop={e => {
             e.preventDefault()
             setDragOverTrash(false)
+            const docIdsJson = e.dataTransfer.getData('application/markpad-doc-ids')
+            if (docIdsJson) {
+              try {
+                const ids = JSON.parse(docIdsJson) as string[]
+                setTrashDocIds(ids)
+              } catch {}
+              return
+            }
             const docId = e.dataTransfer.getData('application/markpad-doc-id')
             if (docId) {
               setTrashDocId(docId)
@@ -499,7 +667,7 @@ export function FolderSidebar({
         </div>
       )}
 
-      {/* Trash confirmation dialog */}
+      {/* Trash confirmation dialog (single doc) */}
       {trashDocId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -530,6 +698,43 @@ export function FolderSidebar({
                 }}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trash confirmation dialog (multiple docs) */}
+      {trashDocIds && trashDocIds.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setTrashDocIds(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-6 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
+              Delete {trashDocIds.length} documents?
+            </h4>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              {trashDocIds.length} documents will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="rounded px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => setTrashDocIds(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded bg-[var(--color-danger)] px-3 py-1.5 text-sm text-white hover:opacity-90"
+                onClick={() => {
+                  onDeleteMultipleDocuments?.(trashDocIds)
+                  setTrashDocIds(null)
+                }}
+              >
+                Delete ({trashDocIds.length})
               </button>
             </div>
           </div>

@@ -65,6 +65,11 @@ export function useDocuments() {
     await refresh()
   }, [refresh])
 
+  const reorderFolders = useCallback(async (updates: { id: string; order: number; parentId?: string | null }[]) => {
+    await storage.reorderFolders(updates)
+    await refresh()
+  }, [refresh])
+
   const createTag = useCallback(async (name: string, color?: string) => {
     const tag = await storage.createTag(name, color)
     await refresh()
@@ -100,7 +105,7 @@ export function useDocuments() {
   return {
     documents, folders, tags, loading, refresh,
     createDocument, updateDocument, deleteDocument, duplicateDocument,
-    createFolder, updateFolder, deleteFolder,
+    createFolder, updateFolder, deleteFolder, reorderFolders,
     createTag, deleteTag,
     sortDocuments, searchDocuments,
   }

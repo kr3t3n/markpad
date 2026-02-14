@@ -20,20 +20,30 @@ interface DocumentCardProps {
   document: MarkpadDocument
   tags: Tag[]
   folders: { id: string; name: string }[]
+  selected?: boolean
+  selectionActive?: boolean
+  onSelect?: (id: string, e: React.MouseEvent) => void
   onRename: (id: string, title: string) => void
   onDuplicate: (id: string) => void
   onMove: (id: string, folderId: string | null) => void
   onDelete: (id: string) => void
+  onBulkAction?: (action: 'delete' | 'move' | 'duplicate', ids: string[]) => void
+  selectedIds?: string[]
 }
 
 export function DocumentCard({
   document: doc,
   tags,
   folders,
+  selected = false,
+  selectionActive = false,
+  onSelect,
   onRename,
   onDuplicate,
   onMove,
   onDelete,
+  onBulkAction,
+  selectedIds = [],
 }: DocumentCardProps) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -43,6 +53,8 @@ export function DocumentCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const isPartOfSelection = selected && selectedIds.length > 1
 
   useEffect(() => {
     if (renaming) inputRef.current?.focus()
@@ -77,22 +89,65 @@ export function DocumentCard({
     setRenaming(false)
   }
 
+  const deleteCount = isPartOfSelection ? selectedIds.length : 1
+
   return (
     <div
       draggable={!renaming}
       onDragStart={e => {
-        e.dataTransfer.setData('application/markpad-doc-id', doc.id)
+        // If this card is selected and part of multi-select, drag all selected
+        if (selected && selectedIds.length > 1) {
+          e.dataTransfer.setData('application/markpad-doc-ids', JSON.stringify(selectedIds))
+        } else {
+          e.dataTransfer.setData('application/markpad-doc-id', doc.id)
+        }
         e.dataTransfer.effectAllowed = 'move'
       }}
-      className="group relative flex flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 transition-shadow hover:shadow-md cursor-pointer"
-      onClick={() => {
-        if (!renaming && !menuOpen && !confirmDelete) navigate(`/app/doc/${doc.id}`)
+      className={`group relative flex flex-col rounded-lg border p-4 transition-shadow cursor-pointer ${
+        selected
+          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5 shadow-md ring-1 ring-[var(--color-accent)]/30'
+          : 'border-[var(--color-border)] bg-[var(--color-bg-secondary)] hover:shadow-md'
+      }`}
+      onClick={e => {
+        if (renaming || menuOpen || confirmDelete) return
+        // If shift/cmd held or selection is active, toggle selection
+        if (e.shiftKey || e.metaKey || e.ctrlKey || selectionActive) {
+          onSelect?.(doc.id, e)
+          return
+        }
+        navigate(`/app/doc/${doc.id}`)
       }}
       onContextMenu={e => {
         e.preventDefault()
         setMenuOpen(true)
       }}
     >
+      {/* Checkbox - shown on hover or when selection is active */}
+      <div
+        className={`absolute left-2 top-2 z-10 transition-opacity ${
+          selected || selectionActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+      >
+        <button
+          className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+            selected
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+              : 'border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-accent)]'
+          }`}
+          onClick={e => {
+            e.stopPropagation()
+            onSelect?.(doc.id, e)
+          }}
+          aria-label={selected ? 'Deselect document' : 'Select document'}
+        >
+          {selected && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </button>
+      </div>
+
       {/* Title */}
       {renaming ? (
         <input
@@ -164,37 +219,55 @@ export function DocumentCard({
           className="absolute right-2 top-9 z-20 min-w-[160px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg"
           onClick={e => e.stopPropagation()}
         >
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
-            onClick={() => {
-              setMenuOpen(false)
-              setRenaming(true)
-            }}
-          >
-            Rename
-          </button>
-          <button
-            className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
-            onClick={() => {
-              onDuplicate(doc.id)
-              setMenuOpen(false)
-            }}
-          >
-            Duplicate
-          </button>
+          {/* Show bulk header if multiple selected */}
+          {isPartOfSelection && (
+            <>
+              <div className="px-3 py-1 text-xs font-medium text-[var(--color-text-tertiary)]">
+                {selectedIds.length} documents selected
+              </div>
+              <hr className="my-1 border-[var(--color-border)]" />
+            </>
+          )}
+          {!isPartOfSelection && (
+            <>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setRenaming(true)
+                }}
+              >
+                Rename
+              </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => {
+                  onDuplicate(doc.id)
+                  setMenuOpen(false)
+                }}
+              >
+                Duplicate
+              </button>
+            </>
+          )}
           <div className="relative">
             <button
               className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
               onClick={() => setMoveMenuOpen(prev => !prev)}
             >
-              Move to folder
+              Move to folder{isPartOfSelection ? ` (${selectedIds.length})` : ''}
             </button>
             {moveMenuOpen && (
               <div className="absolute left-full top-0 z-30 ml-1 min-w-[140px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
                 <button
                   className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
                   onClick={() => {
-                    onMove(doc.id, null)
+                    if (isPartOfSelection && onBulkAction) {
+                      // Move all selected to root
+                      for (const id of selectedIds) onMove(id, null)
+                    } else {
+                      onMove(doc.id, null)
+                    }
                     setMenuOpen(false)
                     setMoveMenuOpen(false)
                   }}
@@ -206,7 +279,11 @@ export function DocumentCard({
                     key={f.id}
                     className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
                     onClick={() => {
-                      onMove(doc.id, f.id)
+                      if (isPartOfSelection) {
+                        for (const id of selectedIds) onMove(id, f.id)
+                      } else {
+                        onMove(doc.id, f.id)
+                      }
                       setMenuOpen(false)
                       setMoveMenuOpen(false)
                     }}
@@ -225,7 +302,7 @@ export function DocumentCard({
               setConfirmDelete(true)
             }}
           >
-            Delete
+            Delete{isPartOfSelection ? ` (${selectedIds.length})` : ''}
           </button>
         </div>
       )}
@@ -244,10 +321,12 @@ export function DocumentCard({
             onClick={e => e.stopPropagation()}
           >
             <h4 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
-              Delete document?
+              Delete {deleteCount > 1 ? `${deleteCount} documents` : 'document'}?
             </h4>
             <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
-              "{doc.title}" will be permanently deleted. This cannot be undone.
+              {deleteCount > 1
+                ? `${deleteCount} documents will be permanently deleted. This cannot be undone.`
+                : `"${doc.title}" will be permanently deleted. This cannot be undone.`}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -259,11 +338,15 @@ export function DocumentCard({
               <button
                 className="rounded bg-[var(--color-danger)] px-3 py-1.5 text-sm text-white hover:opacity-90"
                 onClick={() => {
-                  onDelete(doc.id)
+                  if (isPartOfSelection) {
+                    for (const id of selectedIds) onDelete(id)
+                  } else {
+                    onDelete(doc.id)
+                  }
                   setConfirmDelete(false)
                 }}
               >
-                Delete
+                Delete{deleteCount > 1 ? ` (${deleteCount})` : ''}
               </button>
             </div>
           </div>

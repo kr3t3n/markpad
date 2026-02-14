@@ -103,15 +103,22 @@ export async function getDocumentsByFolder(folderId: string | null): Promise<Mar
 // Folders
 export async function getAllFolders(): Promise<Folder[]> {
   const db = await getDB()
-  return db.getAll('folders')
+  const folders = await db.getAll('folders')
+  // Backwards compat: assign order if missing
+  return folders.map(f => ({ ...f, order: f.order ?? 0 })).sort((a, b) => a.order - b.order)
 }
 
 export async function createFolder(name: string, parentId: string | null = null): Promise<Folder> {
   const db = await getDB()
+  // Find max order among siblings to place new folder at end
+  const allFolders = await db.getAll('folders')
+  const siblings = allFolders.filter(f => f.parentId === parentId)
+  const maxOrder = siblings.reduce((max, f) => Math.max(max, f.order ?? 0), 0)
   const folder: Folder = {
     id: uuidv4(),
     name,
     parentId,
+    order: maxOrder + 1,
     createdAt: Date.now(),
   }
   await db.put('folders', folder)
@@ -140,6 +147,20 @@ export async function deleteFolder(id: string): Promise<void> {
     await deleteFolder(child.id)
   }
   await db.delete('folders', id)
+}
+
+export async function reorderFolders(updates: { id: string; order: number; parentId?: string | null }[]): Promise<void> {
+  const db = await getDB()
+  const tx = db.transaction('folders', 'readwrite')
+  for (const u of updates) {
+    const existing = await tx.store.get(u.id)
+    if (existing) {
+      const updated = { ...existing, order: u.order }
+      if (u.parentId !== undefined) updated.parentId = u.parentId
+      await tx.store.put(updated)
+    }
+  }
+  await tx.done
 }
 
 // Tags

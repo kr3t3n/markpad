@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDocuments } from '@/hooks/useDocuments'
 import type { SortField, SortDirection } from '@/types'
@@ -20,6 +20,7 @@ export function FileManager() {
     createFolder,
     updateFolder,
     deleteFolder,
+    reorderFolders,
     sortDocuments,
     searchDocuments,
   } = useDocuments()
@@ -30,6 +31,8 @@ export function FileManager() {
   const [activeFolderId, setActiveFolderId] = useState<string | null | 'all'>('all')
   const [activeTagId, setActiveTagId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const lastSelectedId = useRef<string | null>(null)
 
   const filteredDocs = useMemo(() => {
     let docs = search ? searchDocuments(search) : documents
@@ -52,6 +55,49 @@ export function FileManager() {
     return sortDocuments(docs, sortField, sortDir)
   }, [documents, search, searchDocuments, activeFolderId, activeTagId, tags, sortDocuments, sortField, sortDir])
 
+  // Clear selection when filters change
+  const prevFilterKey = useRef('')
+  const filterKey = `${activeFolderId}|${activeTagId}|${search}`
+  if (filterKey !== prevFilterKey.current) {
+    prevFilterKey.current = filterKey
+    if (selectedIds.length > 0) setSelectedIds([])
+  }
+
+  const handleSelect = useCallback((id: string, e: React.MouseEvent) => {
+    setSelectedIds(prev => {
+      if (e.shiftKey && lastSelectedId.current) {
+        // Shift-click: range select
+        const docIds = filteredDocs.map(d => d.id)
+        const lastIdx = docIds.indexOf(lastSelectedId.current)
+        const currentIdx = docIds.indexOf(id)
+        if (lastIdx !== -1 && currentIdx !== -1) {
+          const start = Math.min(lastIdx, currentIdx)
+          const end = Math.max(lastIdx, currentIdx)
+          const rangeIds = docIds.slice(start, end + 1)
+          // Merge with existing selection
+          const merged = new Set([...prev, ...rangeIds])
+          return Array.from(merged)
+        }
+      }
+      if (e.metaKey || e.ctrlKey) {
+        // Cmd/Ctrl-click: toggle individual
+        if (prev.includes(id)) {
+          return prev.filter(x => x !== id)
+        }
+        lastSelectedId.current = id
+        return [...prev, id]
+      }
+      // Plain click on checkbox: toggle individual
+      if (prev.includes(id)) {
+        return prev.filter(x => x !== id)
+      }
+      lastSelectedId.current = id
+      return [...prev, id]
+    })
+  }, [filteredDocs])
+
+  const selectionActive = selectedIds.length > 0
+
   const handleNewDocument = useCallback(async () => {
     const doc = await createDocument()
     navigate(`/app/doc/${doc.id}`)
@@ -73,9 +119,51 @@ export function FileManager() {
     await updateDocument(id, { folderId })
   }, [updateDocument])
 
+  const handleMoveDocuments = useCallback(async (docId: string, folderId: string | null) => {
+    await updateDocument(docId, { folderId })
+  }, [updateDocument])
+
+  const handleMoveMultipleDocuments = useCallback(async (docIds: string[], folderId: string | null) => {
+    for (const id of docIds) {
+      await updateDocument(id, { folderId })
+    }
+    setSelectedIds([])
+  }, [updateDocument])
+
+  const handleDeleteMultipleDocuments = useCallback(async (docIds: string[]) => {
+    for (const id of docIds) {
+      await deleteDocument(id)
+    }
+    setSelectedIds([])
+  }, [deleteDocument])
+
   const handleRenameFolder = useCallback(async (id: string, name: string) => {
     await updateFolder(id, { name })
   }, [updateFolder])
+
+  const handleReorderFolder = useCallback(async (folderId: string, direction: 'up' | 'down') => {
+    const folder = folders.find(f => f.id === folderId)
+    if (!folder) return
+    const siblings = folders
+      .filter(f => f.parentId === folder.parentId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    const idx = siblings.findIndex(s => s.id === folderId)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= siblings.length) return
+    const target = siblings[swapIdx]
+    await reorderFolders([
+      { id: folderId, order: target.order ?? 0 },
+      { id: target.id, order: folder.order ?? 0 },
+    ])
+  }, [folders, reorderFolders])
+
+  const handleMoveFolder = useCallback(async (folderId: string, newParentId: string | null) => {
+    const newSiblings = folders.filter(f => f.parentId === newParentId && f.id !== folderId)
+    const maxOrder = newSiblings.reduce((max, f) => Math.max(max, f.order ?? 0), 0)
+    await reorderFolders([
+      { id: folderId, order: maxOrder + 1, parentId: newParentId },
+    ])
+  }, [folders, reorderFolders])
 
   const sortLabel: Record<SortField, string> = {
     title: 'Name',
@@ -92,7 +180,12 @@ export function FileManager() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" onClick={e => {
+      // Click on background clears selection (but not on cards or sidebar)
+      if (e.target === e.currentTarget && selectedIds.length > 0) {
+        setSelectedIds([])
+      }
+    }}>
       <FolderSidebar
         folders={folders}
         tags={tags}
@@ -103,8 +196,12 @@ export function FileManager() {
         onCreateFolder={(name, parentId) => createFolder(name, parentId)}
         onRenameFolder={handleRenameFolder}
         onDeleteFolder={deleteFolder}
-        onMoveDocument={handleMove}
+        onMoveDocument={handleMoveDocuments}
+        onMoveMultipleDocuments={handleMoveMultipleDocuments}
         onDeleteDocument={deleteDocument}
+        onDeleteMultipleDocuments={handleDeleteMultipleDocuments}
+        onReorderFolder={handleReorderFolder}
+        onMoveFolder={handleMoveFolder}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -125,29 +222,50 @@ export function FileManager() {
             </svg>
           </button>
 
-          {/* Search */}
-          <div className="relative flex-1 min-w-[160px]">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-2 pl-9 pr-3 text-sm text-[var(--color-text)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-accent)]"
-              placeholder="Search documents..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
+          {/* Selection info + clear */}
+          {selectionActive ? (
+            <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+              <span className="text-sm font-medium text-[var(--color-accent)]">
+                {selectedIds.length} selected
+              </span>
+              <button
+                className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] underline"
+                onClick={() => setSelectedIds([])}
+              >
+                Clear
+              </button>
+              <button
+                className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] underline"
+                onClick={() => setSelectedIds(filteredDocs.map(d => d.id))}
+              >
+                Select all
+              </button>
+            </div>
+          ) : (
+            /* Search */
+            <div className="relative flex-1 min-w-[160px]">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-2 pl-9 pr-3 text-sm text-[var(--color-text)] placeholder-[var(--color-text-tertiary)] outline-none focus:border-[var(--color-accent)]"
+                placeholder="Search documents..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          )}
 
           {/* Sort */}
           <div className="flex items-center gap-1">
@@ -196,7 +314,15 @@ export function FileManager() {
         </div>
 
         {/* Document grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          onClick={e => {
+            // Click on empty grid area clears selection
+            if (e.target === e.currentTarget && selectedIds.length > 0) {
+              setSelectedIds([])
+            }
+          }}
+        >
           {filteredDocs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-4 opacity-50">
@@ -228,6 +354,10 @@ export function FileManager() {
                   document={doc}
                   tags={tags}
                   folders={folders.map(f => ({ id: f.id, name: f.name }))}
+                  selected={selectedIds.includes(doc.id)}
+                  selectionActive={selectionActive}
+                  selectedIds={selectedIds}
+                  onSelect={handleSelect}
                   onRename={handleRename}
                   onDuplicate={duplicateDocument}
                   onMove={handleMove}
