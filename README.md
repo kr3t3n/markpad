@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/logo.svg" alt="Markpad" width="64" height="64" />
+  <img src="public/logo.png" alt="Markpad" width="80" />
 </p>
 
 <h1 align="center">Markpad</h1>
@@ -14,6 +14,12 @@
 </p>
 
 ---
+
+<p align="center">
+  <a href="https://markpad.online">
+    <img src="public/og-image.png" alt="Markpad — Simple and Beautiful Markdown Editor" width="720" />
+  </a>
+</p>
 
 ## What is Markpad?
 
