@@ -20,7 +20,7 @@ function AppRoutes() {
       } />
       <Route path="/app/doc/:id" element={
         <Layout theme={theme} resolvedTheme={resolvedTheme} setTheme={setTheme}>
-          <EditorPage />
+          <EditorPage resolvedTheme={resolvedTheme} />
         </Layout>
       } />
       <Route path="/app/settings" element={

@@ -3,22 +3,21 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
 import { updateDocument } from '@/lib/storage'
-import { useTheme } from '@/hooks/useTheme'
 import type { MarkpadDocument } from '@/types'
 import { EditorToolbar } from './EditorToolbar'
 import { SourceEditor } from './SourceEditor'
 
 interface MarkpadEditorProps {
   document: MarkpadDocument
+  resolvedTheme: 'light' | 'dark'
 }
 
-export function MarkpadEditor({ document: initialDoc }: MarkpadEditorProps) {
+export function MarkpadEditor({ document: initialDoc, resolvedTheme }: MarkpadEditorProps) {
   const [title, setTitle] = useState(initialDoc.title)
   const [mode, setMode] = useState<'visual' | 'source'>('visual')
   const [markdown, setMarkdown] = useState(initialDoc.content)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const docIdRef = useRef(initialDoc.id)
-  const { resolvedTheme } = useTheme()
 
   const editor = useCreateBlockNote({
     initialContent: initialDoc.blockNoteContent

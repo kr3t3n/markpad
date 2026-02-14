@@ -4,7 +4,11 @@ import { getDocument } from '@/lib/storage'
 import type { MarkpadDocument } from '@/types'
 import { MarkpadEditor } from './MarkpadEditor'
 
-export function EditorPage() {
+interface EditorPageProps {
+  resolvedTheme: 'light' | 'dark'
+}
+
+export function EditorPage({ resolvedTheme }: EditorPageProps) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [doc, setDoc] = useState<MarkpadDocument | null>(null)
@@ -38,5 +42,5 @@ export function EditorPage() {
     return null
   }
 
-  return <MarkpadEditor key={doc.id} document={doc} />
+  return <MarkpadEditor key={doc.id} document={doc} resolvedTheme={resolvedTheme} />
 }
