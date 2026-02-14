@@ -28,6 +28,7 @@ interface FolderSidebarProps {
   onRenameFolder: (id: string, name: string) => void
   onDeleteFolder: (id: string) => void
   onMoveDocument?: (docId: string, folderId: string | null) => void
+  onDeleteDocument?: (docId: string) => void
   open: boolean
   onClose: () => void
 }
@@ -248,6 +249,7 @@ export function FolderSidebar({
   onRenameFolder,
   onDeleteFolder,
   onMoveDocument,
+  onDeleteDocument,
   open,
   onClose,
 }: FolderSidebarProps) {
@@ -257,6 +259,8 @@ export function FolderSidebar({
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
   const [newFolderName, setNewFolderName] = useState('')
   const [dragOverUnfiled, setDragOverUnfiled] = useState(false)
+  const [dragOverTrash, setDragOverTrash] = useState(false)
+  const [trashDocId, setTrashDocId] = useState<string | null>(null)
   const newFolderRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -461,6 +465,76 @@ export function FolderSidebar({
           </>
         )}
       </div>
+
+      {/* Trash drop zone */}
+      {onDeleteDocument && (
+        <div
+          className={`mx-2 mb-2 flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs transition-colors ${
+            dragOverTrash
+              ? 'border-[var(--color-danger)] bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
+              : 'border-[var(--color-border)] text-[var(--color-text-tertiary)]'
+          }`}
+          onDragOver={e => {
+            if (e.dataTransfer.types.includes('application/markpad-doc-id')) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              setDragOverTrash(true)
+            }
+          }}
+          onDragLeave={() => setDragOverTrash(false)}
+          onDrop={e => {
+            e.preventDefault()
+            setDragOverTrash(false)
+            const docId = e.dataTransfer.getData('application/markpad-doc-id')
+            if (docId) {
+              setTrashDocId(docId)
+            }
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+          Drop here to delete
+        </div>
+      )}
+
+      {/* Trash confirmation dialog */}
+      {trashDocId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setTrashDocId(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-6 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
+              Delete document?
+            </h4>
+            <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+              This document will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="rounded px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
+                onClick={() => setTrashDocId(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded bg-[var(--color-danger)] px-3 py-1.5 text-sm text-white hover:opacity-90"
+                onClick={() => {
+                  onDeleteDocument?.(trashDocId)
+                  setTrashDocId(null)
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 

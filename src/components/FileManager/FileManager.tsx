@@ -104,6 +104,7 @@ export function FileManager() {
         onRenameFolder={handleRenameFolder}
         onDeleteFolder={deleteFolder}
         onMoveDocument={handleMove}
+        onDeleteDocument={deleteDocument}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
