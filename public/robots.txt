@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /app
+Allow: /terms
+Allow: /privacy
+Disallow: /app/doc/
+
+Sitemap: https://markpad.online/sitemap.xml

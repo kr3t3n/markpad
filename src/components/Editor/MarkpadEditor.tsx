@@ -1,0 +1,128 @@
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useCreateBlockNote } from '@blocknote/react'
+import { BlockNoteView } from '@blocknote/mantine'
+import '@blocknote/mantine/style.css'
+import { updateDocument } from '@/lib/storage'
+import { useTheme } from '@/hooks/useTheme'
+import type { MarkpadDocument } from '@/types'
+import { EditorToolbar } from './EditorToolbar'
+import { SourceEditor } from './SourceEditor'
+
+interface MarkpadEditorProps {
+  document: MarkpadDocument
+}
+
+export function MarkpadEditor({ document: initialDoc }: MarkpadEditorProps) {
+  const [title, setTitle] = useState(initialDoc.title)
+  const [mode, setMode] = useState<'visual' | 'source'>('visual')
+  const [markdown, setMarkdown] = useState(initialDoc.content)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const docIdRef = useRef(initialDoc.id)
+  const { resolvedTheme } = useTheme()
+
+  const editor = useCreateBlockNote({
+    initialContent: initialDoc.blockNoteContent
+      ? (initialDoc.blockNoteContent as any[])
+      : undefined,
+  })
+
+  const scheduleSave = useCallback(
+    (updates: Partial<MarkpadDocument>) => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+      saveTimerRef.current = setTimeout(() => {
+        updateDocument(docIdRef.current, updates)
+      }, 500)
+    },
+    [],
+  )
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleTitleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newTitle = e.target.value
+      setTitle(newTitle)
+      scheduleSave({ title: newTitle })
+    },
+    [scheduleSave],
+  )
+
+  const handleEditorChange = useCallback(async () => {
+    const blocks = editor.document
+    // Use the editor's built-in markdown export
+    const md = await editor.blocksToMarkdownLossy(blocks)
+    setMarkdown(md)
+    scheduleSave({
+      blockNoteContent: blocks,
+      content: md,
+    })
+  }, [editor, scheduleSave])
+
+  const handleMarkdownChange = useCallback(
+    (newMarkdown: string) => {
+      setMarkdown(newMarkdown)
+      scheduleSave({ content: newMarkdown })
+    },
+    [scheduleSave],
+  )
+
+  const handleModeChange = useCallback(
+    async (newMode: 'visual' | 'source') => {
+      if (newMode === 'source' && mode === 'visual') {
+        const md = await editor.blocksToMarkdownLossy(editor.document)
+        setMarkdown(md)
+      } else if (newMode === 'visual' && mode === 'source') {
+        const blocks = await editor.tryParseMarkdownToBlocks(markdown)
+        editor.replaceBlocks(editor.document, blocks)
+        scheduleSave({
+          blockNoteContent: editor.document,
+          content: markdown,
+        })
+      }
+      setMode(newMode)
+    },
+    [mode, editor, markdown, scheduleSave],
+  )
+
+  return (
+    <div className="flex flex-col h-full">
+      <EditorToolbar
+        title={title}
+        mode={mode}
+        onModeChange={handleModeChange}
+        document={{ ...initialDoc, title, content: markdown }}
+      />
+
+      <div className="px-6 pt-6 pb-2">
+        <input
+          type="text"
+          value={title}
+          onChange={handleTitleChange}
+          placeholder="Untitled"
+          className="w-full text-3xl font-bold bg-transparent border-none outline-none
+            text-[var(--color-text)] placeholder:text-[var(--color-text-secondary)]"
+        />
+      </div>
+
+      {mode === 'visual' ? (
+        <div className="flex-1 min-h-0 overflow-auto px-2">
+          <BlockNoteView
+            editor={editor}
+            onChange={handleEditorChange}
+            theme={resolvedTheme}
+          />
+        </div>
+      ) : (
+        <SourceEditor markdown={markdown} onChange={handleMarkdownChange} />
+      )}
+    </div>
+  )
+}
