@@ -26,6 +26,20 @@ export function MarkpadEditor({ document: initialDoc }: MarkpadEditorProps) {
       : undefined,
   })
 
+  // When a doc has markdown content but no blockNoteContent (e.g. imported files),
+  // parse the markdown into blocks on first load.
+  const hasInitializedRef = useRef(false)
+  useEffect(() => {
+    if (hasInitializedRef.current) return
+    hasInitializedRef.current = true
+    if (!initialDoc.blockNoteContent && initialDoc.content) {
+      const blocks = editor.tryParseMarkdownToBlocks(initialDoc.content)
+      editor.replaceBlocks(editor.document, blocks)
+      // Persist the parsed blocks so next open doesn't need to re-parse
+      updateDocument(docIdRef.current, { blockNoteContent: editor.document })
+    }
+  }, [editor, initialDoc.blockNoteContent, initialDoc.content])
+
   const scheduleSave = useCallback(
     (updates: Partial<MarkpadDocument>) => {
       if (saveTimerRef.current) {
