@@ -165,6 +165,55 @@ export function FileManager() {
     ])
   }, [folders, reorderFolders])
 
+  /** Handle folder drop with position: before/inside/after a target folder */
+  const handleDropFolderAt = useCallback(async (
+    draggedId: string,
+    targetId: string,
+    position: 'before' | 'inside' | 'after',
+  ) => {
+    // Prevent circular references
+    const getDescendantIds = (fId: string): string[] => {
+      const children = folders.filter(f => f.parentId === fId)
+      return [fId, ...children.flatMap(c => getDescendantIds(c.id))]
+    }
+    if (getDescendantIds(draggedId).includes(targetId)) return
+
+    const target = folders.find(f => f.id === targetId)
+    if (!target) return
+
+    if (position === 'inside') {
+      // Nest as child of target — append at end
+      const childSiblings = folders.filter(f => f.parentId === targetId && f.id !== draggedId)
+      const maxOrder = childSiblings.reduce((max, f) => Math.max(max, f.order ?? 0), 0)
+      await reorderFolders([
+        { id: draggedId, order: maxOrder + 1, parentId: targetId },
+      ])
+    } else {
+      // Place before or after the target at the target's parent level
+      const targetParentId = target.parentId
+      const siblings = folders
+        .filter(f => f.parentId === targetParentId && f.id !== draggedId)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+      const targetIdx = siblings.findIndex(s => s.id === targetId)
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1
+
+      // Renumber all siblings with the dragged folder at the right position
+      const reordered = [...siblings]
+      const draggedFolder = folders.find(f => f.id === draggedId)
+      if (!draggedFolder) return
+      reordered.splice(insertIdx, 0, draggedFolder)
+
+      const updates = reordered.map((f, i) => ({
+        id: f.id,
+        order: i,
+        ...(f.id === draggedId ? { parentId: targetParentId } : {}),
+      }))
+
+      await reorderFolders(updates)
+    }
+  }, [folders, reorderFolders])
+
   const sortLabel: Record<SortField, string> = {
     title: 'Name',
     createdAt: 'Date created',
@@ -202,6 +251,7 @@ export function FileManager() {
         onDeleteMultipleDocuments={handleDeleteMultipleDocuments}
         onReorderFolder={handleReorderFolder}
         onMoveFolder={handleMoveFolder}
+        onDropFolderAt={handleDropFolderAt}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

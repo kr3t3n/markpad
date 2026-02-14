@@ -17,6 +17,14 @@ function getSavedWidth(): number {
   return DEFAULT_SIDEBAR_WIDTH
 }
 
+/** Recursively get all descendant folder IDs (including the folder itself) */
+function getDescendantIds(folderId: string, allFolders: Folder[]): string[] {
+  const children = allFolders.filter(f => f.parentId === folderId)
+  return [folderId, ...children.flatMap(c => getDescendantIds(c.id, allFolders))]
+}
+
+type DropPosition = 'before' | 'inside' | 'after'
+
 interface FolderSidebarProps {
   folders: Folder[]
   tags: Tag[]
@@ -33,6 +41,7 @@ interface FolderSidebarProps {
   onDeleteMultipleDocuments?: (docIds: string[]) => void
   onReorderFolder?: (folderId: string, direction: 'up' | 'down') => void
   onMoveFolder?: (folderId: string, newParentId: string | null) => void
+  onDropFolderAt?: (draggedId: string, targetId: string, position: DropPosition) => void
   open: boolean
   onClose: () => void
 }
@@ -51,7 +60,7 @@ interface FolderNodeProps {
   onMoveMultipleDocuments?: (docIds: string[], folderId: string | null) => void
   onReorderFolder?: (folderId: string, direction: 'up' | 'down') => void
   onMoveFolder?: (folderId: string, newParentId: string | null) => void
-  onDropFolder?: (draggedId: string, targetId: string) => void
+  onDropFolderAt?: (draggedId: string, targetId: string, position: DropPosition) => void
   depth: number
 }
 
@@ -69,7 +78,7 @@ function FolderNode({
   onMoveMultipleDocuments,
   onReorderFolder,
   onMoveFolder,
-  onDropFolder,
+  onDropFolderAt,
   depth,
 }: FolderNodeProps) {
   const [expanded, setExpanded] = useState(true)
@@ -77,10 +86,11 @@ function FolderNode({
   const [moveUnderOpen, setMoveUnderOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)
-  const [dragOver, setDragOver] = useState(false)
-  const [folderDragOver, setFolderDragOver] = useState(false)
+  const [docDragOver, setDocDragOver] = useState(false)
+  const [folderDropPos, setFolderDropPos] = useState<DropPosition | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
 
   const isActive = activeFolderId === folder.id
   const sortedSiblings = [...siblings].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -89,11 +99,7 @@ function FolderNode({
   const isLast = siblingIndex === sortedSiblings.length - 1
 
   // Other folders this can be moved under (exclude self and descendants)
-  const getDescendantIds = (fId: string): string[] => {
-    const childFolders = allFolders.filter(f => f.parentId === fId)
-    return [fId, ...childFolders.flatMap(c => getDescendantIds(c.id))]
-  }
-  const descendantIds = getDescendantIds(folder.id)
+  const descendantIds = getDescendantIds(folder.id, allFolders)
   const moveTargets = allFolders.filter(f => !descendantIds.includes(f.id))
 
   useEffect(() => {
@@ -121,9 +127,31 @@ function FolderNode({
     setRenaming(false)
   }
 
+  /**
+   * Compute drop position based on mouse Y relative to the row element.
+   * Top 25% = before, middle 50% = inside (nest), bottom 25% = after
+   */
+  function getDropPosition(e: React.DragEvent): DropPosition {
+    if (!rowRef.current) return 'inside'
+    const rect = rowRef.current.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const h = rect.height
+    if (y < h * 0.25) return 'before'
+    if (y > h * 0.75) return 'after'
+    return 'inside'
+  }
+
   return (
     <div>
+      {/* Drop indicator line BEFORE */}
+      {folderDropPos === 'before' && (
+        <div
+          className="h-0.5 rounded bg-[var(--color-accent)]"
+          style={{ marginLeft: `${depth * 16 + 8}px`, marginRight: 8 }}
+        />
+      )}
       <div
+        ref={rowRef}
         draggable={!renaming}
         onDragStart={e => {
           e.dataTransfer.setData('application/markpad-folder-id', folder.id)
@@ -131,9 +159,9 @@ function FolderNode({
           e.stopPropagation()
         }}
         className={`group relative flex items-center gap-1 rounded px-2 py-1 text-sm cursor-pointer transition-colors ${
-          folderDragOver
+          folderDropPos === 'inside'
             ? 'bg-[var(--color-accent)]/30 ring-2 ring-[var(--color-accent)] ring-inset'
-            : dragOver
+            : docDragOver
               ? 'bg-[var(--color-accent)]/20 ring-2 ring-[var(--color-accent)] ring-inset'
               : isActive
                 ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium'
@@ -150,26 +178,35 @@ function FolderNode({
           e.stopPropagation()
           if (e.dataTransfer.types.includes('application/markpad-folder-id')) {
             e.dataTransfer.dropEffect = 'move'
-            setFolderDragOver(true)
+            setFolderDropPos(getDropPosition(e))
           } else if (e.dataTransfer.types.includes('application/markpad-doc-ids') || e.dataTransfer.types.includes('application/markpad-doc-id')) {
             e.dataTransfer.dropEffect = 'move'
-            setDragOver(true)
+            setDocDragOver(true)
           }
         }}
         onDragLeave={() => {
-          setDragOver(false)
-          setFolderDragOver(false)
+          setDocDragOver(false)
+          setFolderDropPos(null)
         }}
         onDrop={e => {
           e.preventDefault()
           e.stopPropagation()
-          setDragOver(false)
-          setFolderDragOver(false)
-          const folderId = e.dataTransfer.getData('application/markpad-folder-id')
-          if (folderId && folderId !== folder.id && onDropFolder) {
-            onDropFolder(folderId, folder.id)
+          const currentPos = folderDropPos
+          setDocDragOver(false)
+          setFolderDropPos(null)
+
+          // Folder drop
+          const draggedFolderId = e.dataTransfer.getData('application/markpad-folder-id')
+          if (draggedFolderId && draggedFolderId !== folder.id && onDropFolderAt) {
+            // Prevent circular reference: don't allow dropping a parent onto its own descendant
+            const draggedDescendants = getDescendantIds(draggedFolderId, allFolders)
+            if (draggedDescendants.includes(folder.id)) {
+              return
+            }
+            onDropFolderAt(draggedFolderId, folder.id, currentPos || 'inside')
             return
           }
+
           // Multi-doc drop
           const docIdsJson = e.dataTransfer.getData('application/markpad-doc-ids')
           if (docIdsJson && onMoveMultipleDocuments) {
@@ -294,7 +331,7 @@ function FolderNode({
                   className="w-full px-3 py-1.5 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
                   onClick={() => setMoveUnderOpen(prev => !prev)}
                 >
-                  Move under…
+                  Move under...
                 </button>
                 {moveUnderOpen && (
                   <div className="absolute left-full top-0 z-40 ml-1 min-w-[140px] max-h-[200px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] py-1 shadow-lg">
@@ -348,6 +385,13 @@ function FolderNode({
           </div>
         )}
       </div>
+      {/* Drop indicator line AFTER */}
+      {folderDropPos === 'after' && (
+        <div
+          className="h-0.5 rounded bg-[var(--color-accent)]"
+          style={{ marginLeft: `${depth * 16 + 8}px`, marginRight: 8 }}
+        />
+      )}
       {expanded &&
         children.map(child => (
           <FolderNode
@@ -365,7 +409,7 @@ function FolderNode({
             onMoveMultipleDocuments={onMoveMultipleDocuments}
             onReorderFolder={onReorderFolder}
             onMoveFolder={onMoveFolder}
-            onDropFolder={onDropFolder}
+            onDropFolderAt={onDropFolderAt}
             depth={depth + 1}
           />
         ))}
@@ -389,6 +433,7 @@ export function FolderSidebar({
   onDeleteMultipleDocuments,
   onReorderFolder,
   onMoveFolder,
+  onDropFolderAt,
   open,
   onClose,
 }: FolderSidebarProps) {
@@ -420,13 +465,6 @@ export function FolderSidebar({
   function startCreateChild(parentId: string) {
     setNewFolderParentId(parentId)
     setCreatingFolder(true)
-  }
-
-  // Handle folder dropped onto another folder (make it a child)
-  function handleDropFolder(draggedId: string, targetId: string) {
-    if (onMoveFolder) {
-      onMoveFolder(draggedId, targetId)
-    }
   }
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -518,7 +556,11 @@ export function FolderSidebar({
             onSelectTag(null)
           }}
           onDragOver={e => {
-            if (e.dataTransfer.types.includes('application/markpad-doc-id') || e.dataTransfer.types.includes('application/markpad-doc-ids')) {
+            if (
+              e.dataTransfer.types.includes('application/markpad-doc-id') ||
+              e.dataTransfer.types.includes('application/markpad-doc-ids') ||
+              e.dataTransfer.types.includes('application/markpad-folder-id')
+            ) {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
               setDragOverUnfiled(true)
@@ -528,6 +570,15 @@ export function FolderSidebar({
           onDrop={e => {
             e.preventDefault()
             setDragOverUnfiled(false)
+            // Folder drop → move to root
+            const folderId = e.dataTransfer.getData('application/markpad-folder-id')
+            if (folderId && onMoveFolder) {
+              const f = folders.find(fl => fl.id === folderId)
+              if (f && f.parentId !== null) {
+                onMoveFolder(folderId, null)
+              }
+              return
+            }
             const docIdsJson = e.dataTransfer.getData('application/markpad-doc-ids')
             if (docIdsJson && onMoveMultipleDocuments) {
               try {
@@ -568,7 +619,7 @@ export function FolderSidebar({
             onMoveMultipleDocuments={onMoveMultipleDocuments}
             onReorderFolder={onReorderFolder}
             onMoveFolder={onMoveFolder}
-            onDropFolder={handleDropFolder}
+            onDropFolderAt={onDropFolderAt}
             depth={0}
           />
         ))}
@@ -677,9 +728,7 @@ export function FolderSidebar({
             className="mx-4 w-full max-w-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-6 shadow-xl"
             onClick={e => e.stopPropagation()}
           >
-            <h4 className="mb-2 text-sm font-semibold text-[var(--color-text)]">
-              Delete document?
-            </h4>
+            <h4 className="mb-2 text-sm font-semibold text-[var(--color-text)]">Delete document?</h4>
             <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
               This document will be permanently deleted. This cannot be undone.
             </p>

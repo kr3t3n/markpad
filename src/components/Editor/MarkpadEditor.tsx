@@ -126,12 +126,29 @@ export function MarkpadEditor({ document: initialDoc, resolvedTheme }: MarkpadEd
       </div>
 
       {mode === 'visual' ? (
-        <div className="flex-1 min-h-0 overflow-auto px-2">
+        <div
+          className="flex-1 min-h-0 overflow-auto px-2 cursor-text"
+          onClick={e => {
+            // If user clicks the empty area below editor content, focus at end
+            const target = e.target as HTMLElement
+            // Only handle clicks on the wrapper itself, not on editor content
+            if (target === e.currentTarget || target.closest('.bn-container') === null) {
+              const blocks = editor.document
+              if (blocks.length > 0) {
+                const lastBlock = blocks[blocks.length - 1]
+                editor.setTextCursorPosition(lastBlock, 'end')
+                editor.focus()
+              }
+            }
+          }}
+        >
           <BlockNoteView
             editor={editor}
             onChange={handleEditorChange}
             theme={resolvedTheme}
           />
+          {/* Spacer to create clickable area below content */}
+          <div className="min-h-[50vh]" />
         </div>
       ) : (
         <SourceEditor markdown={markdown} onChange={handleMarkdownChange} />
