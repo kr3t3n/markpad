@@ -7,6 +7,7 @@ import { SettingsPage } from '@/components/Settings/SettingsPage'
 import { LandingPage } from '@/components/Landing/LandingPage'
 import { TermsPage } from '@/components/Legal/TermsPage'
 import { PrivacyPage } from '@/components/Legal/PrivacyPage'
+import { ShareViewer } from '@/components/Share/ShareViewer'
 
 function AppRoutes() {
   const { theme, resolvedTheme, setTheme } = useTheme()
@@ -28,6 +29,7 @@ function AppRoutes() {
           <SettingsPage theme={theme} setTheme={setTheme} />
         </Layout>
       } />
+      <Route path="/s" element={<ShareViewer />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/" element={<LandingPage resolvedTheme={resolvedTheme} />} />
