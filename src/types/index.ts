@@ -27,6 +27,7 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system'
   onboardingDismissed: boolean
   lastOpenedDocId: string | null
+  showWordCount: boolean
 }
 
 export interface WorkspaceBackup {

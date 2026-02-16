@@ -114,6 +114,7 @@ export function EditorToolbar({ title, mode, onModeChange, document: doc }: Edit
       {shareOpen && (
         <ShareModal
           markdown={doc.content}
+          title={doc.title}
           onClose={() => setShareOpen(false)}
         />
       )}

@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { updateDocument } from '@/lib/storage'
+import { updateDocument, getSettings, updateSettings } from '@/lib/storage'
 import type { MarkpadDocument } from '@/types'
 import { EditorToolbar } from './EditorToolbar'
 import { SourceEditor } from './SourceEditor'
@@ -16,8 +16,20 @@ export function MarkpadEditor({ document: initialDoc, resolvedTheme }: MarkpadEd
   const [title, setTitle] = useState(initialDoc.title)
   const [mode, setMode] = useState<'visual' | 'source'>('visual')
   const [markdown, setMarkdown] = useState(initialDoc.content)
+  const [showWordCount, setShowWordCount] = useState(true)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const docIdRef = useRef(initialDoc.id)
+
+  // Load word count preference from settings
+  useEffect(() => {
+    getSettings().then(s => setShowWordCount(s.showWordCount ?? true))
+  }, [])
+
+  // Compute word + char counts
+  const { wordCount, charCount } = useMemo(() => {
+    const words = markdown.split(/\s+/).filter(Boolean).length
+    return { wordCount: words, charCount: markdown.length }
+  }, [markdown])
 
   const editor = useCreateBlockNote({
     initialContent: initialDoc.blockNoteContent
@@ -153,6 +165,41 @@ export function MarkpadEditor({ document: initialDoc, resolvedTheme }: MarkpadEd
       ) : (
         <SourceEditor markdown={markdown} onChange={handleMarkdownChange} />
       )}
+
+      {/* Word / char counter footer */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-[var(--color-border)] bg-[var(--color-bg)] text-[10px] text-[var(--color-text-secondary)]">
+        {showWordCount ? (
+          <span>
+            {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}
+            <span className="mx-1.5 opacity-40">&middot;</span>
+            {charCount.toLocaleString()} {charCount === 1 ? 'char' : 'chars'}
+          </span>
+        ) : (
+          <span />
+        )}
+        <button
+          onClick={() => {
+            const next = !showWordCount
+            setShowWordCount(next)
+            updateSettings({ showWordCount: next })
+          }}
+          className="p-0.5 rounded hover:bg-[var(--color-bg-secondary)] transition-colors"
+          aria-label={showWordCount ? 'Hide word count' : 'Show word count'}
+          title={showWordCount ? 'Hide word count' : 'Show word count'}
+        >
+          {showWordCount ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   )
 }

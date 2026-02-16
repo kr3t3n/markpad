@@ -5,6 +5,11 @@ const MAX_PAYLOAD_BYTES = 60_000
 
 export type ShareError = 'too-large' | 'wrong-password' | 'corrupted'
 
+export interface ShareData {
+  title: string
+  markdown: string
+}
+
 // ---- Base64url helpers (URL-safe, no padding) ----
 
 function toBase64url(buf: Uint8Array): string {
@@ -43,16 +48,74 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   )
 }
 
-// ---- Public API ----
+// ---- Payload detection ----
 
 /**
- * Compress and encrypt markdown content with a password.
+ * Check if a payload is encrypted (3 dot-separated parts) vs unencrypted (single part).
+ */
+export function isEncryptedPayload(payload: string): boolean {
+  return payload.split('.').length === 3
+}
+
+/**
+ * Parse decompressed raw string into { title, markdown }.
+ * New format: JSON `{ title, markdown }`. Legacy: raw markdown string.
+ */
+export function parseSharePayload(raw: string): ShareData {
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed.markdown === 'string') {
+      return {
+        title: parsed.title || 'Shared Note',
+        markdown: parsed.markdown,
+      }
+    }
+  } catch {
+    // Not JSON — legacy plain markdown
+  }
+  return { title: 'Shared Note', markdown: raw }
+}
+
+// ---- Unencrypted (compress only) ----
+
+/**
+ * Compress share data without encryption. Returns a single base64url string (no dots).
+ */
+export function compressOnly(data: ShareData): string {
+  const jsonString = JSON.stringify(data)
+  const compressed = pako.deflate(new TextEncoder().encode(jsonString))
+  const payload = toBase64url(compressed)
+  if (payload.length > MAX_PAYLOAD_BYTES) {
+    throw 'too-large' as ShareError
+  }
+  return payload
+}
+
+/**
+ * Decompress an unencrypted payload back to raw string.
+ */
+export function decompressOnly(payload: string): string {
+  try {
+    const compressed = fromBase64url(payload)
+    const decompressed = pako.inflate(compressed)
+    return new TextDecoder().decode(decompressed)
+  } catch {
+    throw 'corrupted' as ShareError
+  }
+}
+
+// ---- Encrypted (compress + encrypt) ----
+
+/**
+ * Compress and encrypt share data with a password.
  * Returns a URL-safe payload string: `<salt>.<iv>.<ciphertext>` (all base64url).
  * Throws `'too-large'` if the result exceeds URL limits.
  */
-export async function compressAndEncrypt(markdown: string, password: string): Promise<string> {
+export async function compressAndEncrypt(data: ShareData, password: string): Promise<string> {
+  const jsonString = JSON.stringify(data)
+
   // 1. Compress
-  const compressed = pako.deflate(new TextEncoder().encode(markdown))
+  const compressed = pako.deflate(new TextEncoder().encode(jsonString))
 
   // 2. Generate random salt + IV
   const salt = crypto.getRandomValues(new Uint8Array(16))
@@ -85,7 +148,7 @@ export async function compressAndEncrypt(markdown: string, password: string): Pr
 
 /**
  * Decrypt and decompress a payload string with a password.
- * Returns the original markdown string.
+ * Returns the raw decompressed string (may be JSON or legacy markdown).
  * Throws `'wrong-password'` or `'corrupted'` on failure.
  */
 export async function decryptAndDecompress(payload: string, password: string): Promise<string> {
@@ -116,21 +179,28 @@ export async function decryptAndDecompress(payload: string, password: string): P
 }
 
 /**
- * Estimate whether a markdown string will fit in a share URL.
- * Returns the approximate word count limit info.
+ * Estimate whether share data will fit in a share URL.
  */
-export function estimateShareSize(markdown: string): {
+export function estimateShareSize(markdown: string, title?: string): {
   fits: boolean
   compressedBytes: number
   wordCount: number
+  charCount: number
+  percentUsed: number
 } {
-  const compressed = pako.deflate(new TextEncoder().encode(markdown))
+  const data = title
+    ? JSON.stringify({ title, markdown })
+    : markdown
+  const compressed = pako.deflate(new TextEncoder().encode(data))
   // Rough estimate: encrypted + base64 overhead is ~37% larger than compressed
   const estimatedPayload = Math.ceil(compressed.length * 1.37) + 50 // +50 for salt.iv overhead
   const wordCount = markdown.split(/\s+/).filter(Boolean).length
+  const charCount = markdown.length
   return {
     fits: estimatedPayload <= MAX_PAYLOAD_BYTES,
     compressedBytes: compressed.length,
     wordCount,
+    charCount,
+    percentUsed: Math.min(100, Math.round((estimatedPayload / MAX_PAYLOAD_BYTES) * 100)),
   }
 }

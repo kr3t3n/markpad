@@ -195,6 +195,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   onboardingDismissed: false,
   lastOpenedDocId: null,
+  showWordCount: true,
 }
 
 export async function getSettings(): Promise<AppSettings> {

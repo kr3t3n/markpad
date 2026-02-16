@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { decryptAndDecompress, type ShareError } from '@/lib/sharing'
+import {
+  decryptAndDecompress,
+  decompressOnly,
+  isEncryptedPayload,
+  parseSharePayload,
+  type ShareError,
+} from '@/lib/sharing'
+import { createDocument } from '@/lib/storage'
 
 type ViewerState =
   | { phase: 'password' }
   | { phase: 'decrypting' }
-  | { phase: 'content'; markdown: string }
+  | { phase: 'content'; title: string; markdown: string }
   | { phase: 'error'; kind: 'no-data' | 'wrong-password' | 'corrupted' }
 
 export function ShareViewer() {
@@ -34,8 +42,19 @@ export function ShareViewer() {
     const hash = window.location.hash.slice(1) // remove #
     if (!hash) {
       setState({ phase: 'error', kind: 'no-data' })
-    } else {
-      setPayload(hash)
+      return
+    }
+    setPayload(hash)
+
+    // Auto-decompress if unencrypted (no dots = not encrypted)
+    if (!isEncryptedPayload(hash)) {
+      try {
+        const raw = decompressOnly(hash)
+        const { title, markdown } = parseSharePayload(raw)
+        setState({ phase: 'content', title, markdown })
+      } catch {
+        setState({ phase: 'error', kind: 'corrupted' })
+      }
     }
   }, [])
 
@@ -43,8 +62,9 @@ export function ShareViewer() {
     if (!password || !payload) return
     setState({ phase: 'decrypting' })
     try {
-      const markdown = await decryptAndDecompress(payload, password)
-      setState({ phase: 'content', markdown })
+      const raw = await decryptAndDecompress(payload, password)
+      const { title, markdown } = parseSharePayload(raw)
+      setState({ phase: 'content', title, markdown })
     } catch (err) {
       const kind = err as ShareError
       if (kind === 'wrong-password') {
@@ -56,7 +76,13 @@ export function ShareViewer() {
   }, [password, payload])
 
   if (state.phase === 'content') {
-    return <ContentView markdown={state.markdown} resolvedTheme={resolvedTheme} />
+    return (
+      <ContentView
+        title={state.title}
+        markdown={state.markdown}
+        resolvedTheme={resolvedTheme}
+      />
+    )
   }
 
   return (
@@ -82,7 +108,7 @@ export function ShareViewer() {
               <a
                 href="/app"
                 className="inline-block mt-4 px-4 py-2 text-sm font-medium rounded-lg
-                  bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity"
+                  bg-[var(--color-accent)] text-[var(--color-bg)] hover:opacity-90 transition-opacity"
               >
                 Open Markpad
               </a>
@@ -139,7 +165,7 @@ export function ShareViewer() {
                 onClick={handleDecrypt}
                 disabled={state.phase === 'decrypting' || !password}
                 className="w-full px-4 py-2.5 text-sm font-medium rounded-lg
-                  bg-[var(--color-accent)] text-white
+                  bg-[var(--color-accent)] text-[var(--color-bg)]
                   hover:opacity-90 transition-opacity
                   disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -170,9 +196,19 @@ export function ShareViewer() {
 
 // ---- Content View (decrypted note) ----
 
-function ContentView({ markdown, resolvedTheme }: { markdown: string; resolvedTheme: 'light' | 'dark' }) {
+function ContentView({
+  title,
+  markdown,
+  resolvedTheme,
+}: {
+  title: string
+  markdown: string
+  resolvedTheme: 'light' | 'dark'
+}) {
+  const navigate = useNavigate()
   const editor = useCreateBlockNote({})
   const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (loaded) return
@@ -184,33 +220,63 @@ function ContentView({ markdown, resolvedTheme }: { markdown: string; resolvedTh
     parse()
   }, [editor, markdown, loaded])
 
+  async function handleAddToEditor() {
+    if (saving) return
+    setSaving(true)
+    try {
+      const doc = await createDocument({ title, content: markdown })
+      navigate(`/app/doc/${doc.id}`)
+    } catch {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       {/* Header */}
       <nav className="flex-shrink-0 flex h-12 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4">
         <a
           href="/"
-          className="flex items-center gap-2 text-lg font-semibold tracking-tight text-[var(--color-text)] hover:text-[var(--color-accent)] transition-colors"
+          className="flex items-center gap-2 text-lg font-semibold tracking-tight text-[var(--color-text)] hover:text-[var(--color-accent)] transition-colors shrink-0"
         >
           <img
             src={resolvedTheme === 'dark' ? '/logo-dark.png' : '/logo-white.png'}
             alt=""
             className="h-5 w-5"
           />
-          Markpad
+          <span className="hidden sm:inline">Markpad</span>
         </a>
 
-        <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0110 0v4" />
-          </svg>
-          Shared note (read-only)
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium text-[var(--color-text)] truncate">
+              {title}
+            </span>
+            <span className="text-[10px] text-[var(--color-text-secondary)] shrink-0 hidden sm:inline">
+              (read-only)
+            </span>
+          </div>
+
+          <button
+            onClick={handleAddToEditor}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md shrink-0
+              bg-[var(--color-accent)] text-[var(--color-bg)]
+              hover:opacity-90 transition-opacity
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Add to Editor'}</span>
+          </button>
         </div>
       </nav>
 
       {/* Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-[var(--color-text)] mb-6">{title}</h1>
         <BlockNoteView
           editor={editor}
           editable={false}
