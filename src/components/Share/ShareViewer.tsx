@@ -13,13 +13,14 @@ import {
 import { createDocument } from '@/lib/storage'
 
 type ViewerState =
+  | { phase: 'loading' }
   | { phase: 'password' }
   | { phase: 'decrypting' }
   | { phase: 'content'; title: string; markdown: string }
   | { phase: 'error'; kind: 'no-data' | 'wrong-password' | 'corrupted' }
 
 export function ShareViewer() {
-  const [state, setState] = useState<ViewerState>({ phase: 'password' })
+  const [state, setState] = useState<ViewerState>({ phase: 'loading' })
   const [password, setPassword] = useState('')
   const [payload, setPayload] = useState('')
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light')
@@ -55,6 +56,9 @@ export function ShareViewer() {
       } catch {
         setState({ phase: 'error', kind: 'corrupted' })
       }
+    } else {
+      // Encrypted — show password prompt
+      setState({ phase: 'password' })
     }
   }, [])
 
@@ -74,6 +78,14 @@ export function ShareViewer() {
       }
     }
   }, [password, payload])
+
+  if (state.phase === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
+        <div className="animate-pulse text-[var(--color-text-secondary)] text-sm">Loading...</div>
+      </div>
+    )
+  }
 
   if (state.phase === 'content') {
     return (
